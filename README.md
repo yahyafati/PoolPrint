@@ -124,11 +124,12 @@ Run with hot reload:
 Build the `.dmg` installer:
 
 ```bash
-./gradlew :desktopApp:packageDistributionForCurrentOS
+./gradlew :desktopApp:packageDmg
 ```
 
-The output goes to `desktopApp/build/compose/binaries/`. The app is unsigned, so on first launch
-macOS will ask you to confirm opening it.
+The output goes to `desktopApp/build/compose/binaries/main/dmg/`. The app is unsigned, so on first launch
+macOS will ask you to confirm opening it (right-click → Open). On the Mac you can drag a PDF onto the
+window, use Finder's Open With → Pool Print, or press ⌘O; ⌘P prints from the print sheet.
 
 ### Tests
 

@@ -121,8 +121,8 @@ Implementation notes (M1):
 - Desktop: Apache PDFBox 3.0.8 (`Loader.loadPDF`, a picked file is read in place).
 - Both sit behind `PdfPageCounter` in `commonMain`. A file that can't be read (corrupt, encrypted, not a
   PDF) gives `null`: the button says "Print · ? pages" and printing stays possible.
-- Not verified: PDFBox inside the packaged `.dmg` (the jlink runtime may need extra modules; M4), and
-  `PdfRenderer` on a real device.
+- Not verified: PDFBox inside the packaged `.dmg` (M4 added the runtime modules and the packaged app starts,
+  but a page count in it has not been seen; D-18), and `PdfRenderer` on a real device.
 
 ## D-03 Persistence for settings, presets and caches
 
@@ -283,6 +283,32 @@ owner column). The Cancel button only appears for own rows, asks for confirmatio
 afterwards. Pull-to-refresh was not built; there is a Refresh button on both platforms. The `lpq` parser
 requires the `active`/`1st`/`2nd` rank column, an owner, a numeric job id and a trailing `N bytes`; other rows
 are skipped, and text with no header, status or rows is treated as unexpected output.
+
+## D-18 macOS packaging and file hand-over
+
+**Status:** Accepted (2026-10-25).
+- **Dmg only.** The Msi and Deb targets are gone from `desktopApp/build.gradle.kts`: nothing here can build or test
+  them, and the app's key storage is macOS-only anyway. Re-add them if a Windows or Linux build is ever wanted.
+- **Name and version:** `packageName = "Pool Print"` (so the bundle is `Pool Print.app`), version `1.0.0`
+  (macOS needs a major version of at least 1), bundle id unchanged. The icon is a drawn printer
+  (`desktopApp/icons/make_icon.py` regenerates `PoolPrint.icns`); the Android launcher icon is still the template one.
+- **Runtime modules:** `java.instrument`, `java.naming`, `java.security.jgss`, `java.sql`, `jdk.unsupported`, as
+  suggested by `suggestRuntimeModules`. The packaged app starts with them; PDFBox and sshj inside it are on the
+  manual checklist.
+- **Open With:** `CFBundleDocumentTypes` for `com.adobe.pdf` with `LSHandlerRank` = `Alternate` (listed in Open
+  With, but Preview stays the default). I wrote the plist by hand instead of using `fileAssociation(...)` so the
+  rank and content type are explicit.
+- **One document at a time:** of several dropped or opened files the first PDF is used; the rest are ignored
+  silently. A document that arrives while a job is uploading (or waiting for host-key trust) is ignored, so a
+  running upload never loses its sheet. Anything else (home, Settings, an idle print sheet) is replaced by the
+  new document, and any unsent options on the old sheet are lost.
+- **Not a PDF check:** files are accepted by `.pdf` extension only; a broken one still prints as "? pages", as
+  with the picker. Drag and drop of a file list is how Finder drags work; a drag from a browser (a URL) is not
+  supported.
+- **Signing:** the `.dmg` is ad-hoc signed by jpackage, not notarised. The Keychain prompt after updates (D-04)
+  is therefore still possible; "Always Allow" fixes it. Not tested, since it needs two installed versions.
+- Still not done: the `~/.ssh` key option (D-12). It is an M4 checklist line in the roadmap but was never a task;
+  say if you want it built.
 
 ---
 

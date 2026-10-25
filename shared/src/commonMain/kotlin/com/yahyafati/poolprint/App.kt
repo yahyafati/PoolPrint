@@ -1,6 +1,7 @@
 package com.yahyafati.poolprint
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -9,6 +10,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import com.yahyafati.poolprint.app.AppCommands
 import com.yahyafati.poolprint.app.AppDependencies
 import com.yahyafati.poolprint.core.model.PrintOptions
 import com.yahyafati.poolprint.pdf.PdfDocumentSource
@@ -19,6 +21,7 @@ import com.yahyafati.poolprint.ui.PoolPrintTheme
 import com.yahyafati.poolprint.ui.PresetsModel
 import com.yahyafati.poolprint.ui.PresetsScreen
 import com.yahyafati.poolprint.ui.PrintModel
+import com.yahyafati.poolprint.ui.PrintPhase
 import com.yahyafati.poolprint.ui.PrintScreen
 import com.yahyafati.poolprint.ui.QueueModel
 import com.yahyafati.poolprint.ui.QueueScreen
@@ -30,22 +33,26 @@ private enum class Overlay { None, Settings, Queue, Presets }
 
 /**
  * @param incomingDocument a PDF handed over by the platform (share sheet, Open With); [onIncomingHandled]
- * is called once it has been taken, so it isn't delivered twice.
+ * is called once it has been taken, so it isn't delivered twice. A document that arrives while a job is
+ * being sent is dropped, so the sheet doesn't change under a running upload.
+ * @param commands lets the host window trigger the current screen's actions (menu shortcuts).
  */
 @Composable
 fun App(
     deps: AppDependencies,
     incomingDocument: PdfDocumentSource? = null,
     onIncomingHandled: () -> Unit = {},
+    commands: AppCommands = remember { AppCommands() },
 ) {
     PoolPrintTheme {
         val onboarded by deps.settings.onboardingComplete.collectAsState(initial = null)
         var document by remember { mutableStateOf<PdfDocumentSource?>(null) }
         var screen by remember { mutableStateOf(Overlay.None) }
+        var sending by remember { mutableStateOf(false) }
 
         LaunchedEffect(incomingDocument) {
             if (incomingDocument != null) {
-                document = incomingDocument
+                if (!sending) document = incomingDocument
                 onIncomingHandled()
             }
         }
@@ -78,6 +85,16 @@ fun App(
                 }
                 remembered?.let { initial ->
                     val model = remember(doc) { PrintModel(deps, doc, scope, initial) }
+                    val state by model.state.collectAsState()
+                    val busy = state.phase is PrintPhase.Uploading || state.phase is PrintPhase.AskTrust
+                    DisposableEffect(model, state.canPrint) {
+                        val clear = commands.registerPrint(if (state.canPrint) model::print else null)
+                        onDispose { clear() }
+                    }
+                    DisposableEffect(busy) {
+                        sending = busy
+                        onDispose { sending = false }
+                    }
                     PrintScreen(model, onClose = { document = null }, onShowKey = { screen = Overlay.Settings })
                 }
             }

@@ -48,6 +48,13 @@
     <string name="home_title">Pool Print</string>
     <string name="home_empty">Pick a PDF to print, or share one to Pool Print from another app.</string>
     <string name="home_pick">Choose a PDF…</string>
+
+    <!-- Desktop: menu bar and drag and drop -->
+    <string name="menu_file">File</string>
+    <string name="menu_open_pdf">Open PDF…</string>
+    <string name="menu_print">Print</string>
+    <string name="drop_hint">Drop a PDF to print it</string>
+    <string name="drop_rejected">Only PDF files can be printed.</string>
     <string name="home_status_ready">Connection set up for %1$s</string>
     <string name="home_queue">Print queue</string>
     <string name="home_presets">Presets</string>

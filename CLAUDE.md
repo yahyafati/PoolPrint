@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a Kotlin Multiplatform + Compose Multiplatform app targeting **Android** and **macOS desktop (JVM)**. It prints PDFs on the Uni Freiburg TF pool printers by running `lpr` over SSH on `login.informatik.uni-freiburg.de`, streaming the PDF into its stdin. Milestone 1 (MVP) is implemented; the design is documented in `docs/`, and `docs/roadmap.md` has the status.
+Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a Kotlin Multiplatform + Compose Multiplatform app targeting **Android** and **macOS desktop (JVM)**. It prints PDFs on the Uni Freiburg TF pool printers by running `lpr` over SSH on `login.informatik.uni-freiburg.de`, streaming the PDF into its stdin. Milestones 1–4 are implemented; the design is documented in `docs/`, and `docs/roadmap.md` has the status.
 
 ## Read before working
 
@@ -31,7 +31,7 @@ Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a 
 - Android debug APK: `./gradlew :androidApp:assembleDebug`
 - Desktop run: `./gradlew :desktopApp:run`
 - Desktop with hot reload: `./gradlew :desktopApp:hotRun --auto`
-- Desktop native installers (Dmg/Msi/Deb): `./gradlew :desktopApp:packageDistributionForCurrentOS`
+- Desktop macOS installer: `./gradlew :desktopApp:packageDmg` (Dmg is the only target, D-18)
 - Shared tests on JVM: `./gradlew :shared:jvmTest`
 - Shared tests on Android host (local JVM): `./gradlew :shared:testAndroidHostTest`
 - Standalone test SSH server for manual runs: `./gradlew :shared:runTestSshServer` (port 2222; the emulator reaches it at `10.0.2.2`)
@@ -50,7 +50,7 @@ Three Gradle modules:
   - `androidMain` / `jvmMain` — platform implementations (Android Keystore store, macOS Keychain via JNA, PDF pickers, DataStore setup). Platform-specific functionality (printing APIs will differ per OS) belongs behind `expect`/`actual` or interfaces here.
   - Tests: `commonTest` (runs on both targets), `jvmTest`, `androidHostTest`.
 - **`:androidApp`** — thin Android application shell; `MainActivity` just hosts `App()`.
-- **`:desktopApp`** — thin Kotlin/JVM Compose Desktop shell; `main.kt` opens a `Window` hosting `App()`. Main class `com.yahyafati.poolprint.MainKt`; macOS bundle id `com.yahyafati.poolprint`.
+- **`:desktopApp`** — thin Kotlin/JVM Compose Desktop shell; `main.kt` opens a `Window` hosting `App()` with the menu bar, drop target and Open With inbox from `shared/jvmMain/.../desktop`. Main class `com.yahyafati.poolprint.MainKt`; macOS bundle id `com.yahyafati.poolprint`.
 
 Keep the app modules thin; new features go in `:shared`.
 
