@@ -1,7 +1,0 @@
-package com.yahyafati.poolprint
-
-interface Platform {
-    val name: String
-}
-
-expect fun getPlatform(): Platform
