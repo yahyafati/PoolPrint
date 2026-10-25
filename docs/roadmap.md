@@ -71,11 +71,11 @@ readable result.
       real server may offer other host-key or key-exchange algorithms than the test server; if Test
       connection fails with a protocol error, send the details text.
 - [ ] Android: share a PDF **from another app** and check that Pool Print opens its print sheet; also try
-      the in-app "Choose a PDF…" picker.
+      the in-app "Pick a PDF" picker.
 - [ ] Android: rotate the phone on the print sheet; the document stays.
 - [ ] macOS: first launch creates a Keychain item "Pool Print"; no prompt on later launches.
-- [ ] macOS: "Choose a PDF…" opens the native file dialog and prints the chosen file.
-- [ ] Settings → Forget pinned key → confirm: the next connection asks to trust again.
+- [ ] macOS: "Pick a PDF" opens the native file dialog and prints the chosen file.
+- [ ] Settings → Trusted fingerprint → Forget → confirm: the next connection asks to trust again.
 - [ ] If minification is ever enabled for release builds: install the release APK and run Test
       connection (R8 broke SSH at runtime without the BouncyCastle keep rule).
 

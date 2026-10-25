@@ -74,8 +74,8 @@ Out of scope: a fully compromised (rooted or jailbroken) device, and a compromis
    The fingerprint is pinned only after the user explicitly accepts it.
 2. **Later connections:** accept only the pinned key for that `host:port`.
 3. **Key changed:** abort before authenticating. Show a full-screen, red warning with the expected and
-   actual fingerprints. There's **no one-tap "continue"**. Re-pinning means going to Settings → Host key
-   → "Forget pinned key", with a second confirmation.
+   actual fingerprints. There's **no one-tap "continue"**. Re-pinning means going to Settings → Server
+   → Trusted fingerprint → "Forget", with a second confirmation.
 4. The host-key store is not secret, but it is integrity-relevant. Keep it in app-private storage.
 
 ## Command construction

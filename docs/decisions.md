@@ -355,6 +355,31 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
 - **Not tested against the real server:** whether the pool server allows password or keyboard-interactive logins
   over SSH, and what its prompt looks like (manual checklist in the roadmap).
 
+## D-21 Visual design: the Claude Design "Pool Print" phone screens
+
+**Status:** Accepted (owner, 2026-10-25).
+- **What:** the UI follows the "Pool Print Phone" screens of the owner's Claude Design project (Modernist design
+  system): ink on a warm ground, one lime accent for the primary action, flat surfaces, zero corner radius, strong
+  2dp section rules and 1dp row dividers, labels flush left (also inside buttons), Lucide icons. Light and dark
+  follow the system. Material 3 stays as the component base for menus and the password field, recoloured and
+  squared.
+- **Where:** the tokens and type scale are in `ui/Theme.kt` (`PoolColors`, `PoolTypography`), the building blocks
+  in `ui/Components.kt`, the icons in `ui/Icons.kt`. Screens use those, not raw colours or Material defaults.
+  Desktop gets the same screens as a centred, phone-width column; the separate macOS design is not implemented yet.
+- **Fonts:** the design uses Archivo and JetBrains Mono. They are not bundled yet (pending the owner's OK to add the
+  font files, both SIL OFL); the app uses the platform sans and monospace meanwhile. Swapping is one change in
+  `PoolPrintTheme`.
+- **Where the app departs from the mock-ups,** because the data or feature doesn't exist: no printer location or
+  room, no monthly-budget figure in the cost warning, no live "Connected" status (home says "Ready"), no "Auto"
+  orientation, no "I'll do it later" in onboarding, no undo after deleting a preset (a confirmation instead), no
+  "Edit" for the username and no default-printer setting (the last-used printer is remembered, D-13). The test
+  connection screen shows one progress bar, not three sub-steps, since the test is a single call. The key snippet
+  keeps its `chmod` lines, and the optional password install (D-20) stays as a link on the key step.
+- **Behaviour that came with it:** a running connection test can be cancelled; the print sheet's model outlives
+  Queue and Settings opened from it; the trust prompt and the changed-host-key warning are full screens (the latter
+  still has no way to continue, see security.md).
+- **No new dependencies.**
+
 ---
 
 ## Open questions

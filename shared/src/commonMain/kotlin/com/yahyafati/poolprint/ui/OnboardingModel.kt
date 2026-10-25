@@ -9,6 +9,8 @@ import com.yahyafati.poolprint.service.InstallKeyResult
 import com.yahyafati.poolprint.service.TestConnectionResult
 import com.yahyafati.poolprint.service.UserFailure
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,6 +55,8 @@ class OnboardingModel(
 
     /** Held only while the user is asked to trust the server, so the install can resume. Zeroed on every exit. */
     private var pendingPassword: CharArray? = null
+
+    private var testJob: Job? = null
 
     init {
         scope.launch {
@@ -143,14 +147,22 @@ class OnboardingModel(
     fun testConnection() {
         if (mutableState.value.connect == ConnectState.Running) return
         mutableState.update { it.copy(connect = ConnectState.Running) }
-        scope.launch {
+        testJob = scope.launch {
             val next = when (val result = deps.services.testConnection()) {
                 TestConnectionResult.Success -> ConnectState.Success
                 is TestConnectionResult.NeedsTrust -> ConnectState.AskTrust(result.key)
                 is TestConnectionResult.Failed -> ConnectState.Failed(result.failure)
             }
+            ensureActive() // a cancelled test whose connection error was mapped to a failure reports nothing
             mutableState.update { it.copy(connect = next) }
         }
+    }
+
+    /** Stops a running test (the connection is closed with it) and goes back to the untested state. */
+    fun cancelTest() {
+        if (mutableState.value.connect != ConnectState.Running) return
+        testJob?.cancel()
+        mutableState.update { it.copy(connect = ConnectState.Idle) }
     }
 
     /** The user compared the fingerprint and tapped Trust: pin it, then retry the test or the password install. */

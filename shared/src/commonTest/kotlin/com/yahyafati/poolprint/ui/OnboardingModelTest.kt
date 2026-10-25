@@ -88,6 +88,22 @@ class OnboardingModelTest {
     }
 
     @Test
+    fun `cancelling a running test goes back to untested and a new test can run`() = runTest {
+        val t = TestDeps()
+        t.client.respond(Script.Hang, Script.Result(SshResult(0, "ok\n", "")))
+        val m = model(t)
+        toConnectStep(m)
+        m.testConnection(); advanceUntilIdle()
+        assertEquals(ConnectState.Running, m.state.value.connect)
+
+        m.cancelTest(); advanceUntilIdle()
+        assertEquals(ConnectState.Idle, m.state.value.connect)
+
+        m.testConnection(); advanceUntilIdle()
+        assertEquals(ConnectState.Success, m.state.value.connect)
+    }
+
+    @Test
     fun `declining the host key pins nothing`() = runTest {
         val t = TestDeps()
         t.client.respond(Script.Error(SshError.HostKeyUnknown(key.type, key.fingerprint)))
