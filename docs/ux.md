@@ -38,7 +38,7 @@ After onboarding, nothing asks for a password or passphrase again (A-11).
 
 ### Home
 
-- An empty state with **Pick a PDF** (Android) or **Drop a PDF here / Choose file…** (macOS).
+- An empty state with **Pick a PDF** (Android) or **Choose a PDF…** (macOS; a PDF can also be dropped anywhere on the window, and ⌘O opens the file dialog).
 - Status chip: connection configured / not configured.
 - Entry points: Queue, Presets, Settings.
 

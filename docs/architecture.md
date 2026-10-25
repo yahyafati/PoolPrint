@@ -1,6 +1,6 @@
 # Architecture
 
-> Status: **M1–M3 implemented**; M4 is still design. Update this document whenever the
+> Status: **M1–M4 implemented**. Update this document whenever the
 > implementation diverges.
 >
 > Where M1 differs from the sketches below: `service` (`PoolServices`, `ErrorCatalogue`) and `ui`
@@ -166,15 +166,23 @@ sealed interface SshError {
 ### macOS desktop (`:desktopApp` + `jvmMain`)
 
 - File picker: AWT `FileDialog`, which looks native on macOS, filtered to `.pdf`.
-- Drag and drop onto the window: Compose Desktop drag-and-drop target modifier.
+- Drag and drop onto the window: `PdfDropTarget` (Compose `dragAndDropTarget`, reads the AWT file list).
+  It shows a hint while a file hovers and a short message when the drop holds no PDF.
 - "Open With": `java.awt.Desktop.setOpenFileHandler` and `CFBundleDocumentTypes` for `com.adobe.pdf`
-  in the app's `Info.plist`, through `compose.desktop.application.nativeDistributions.macOS.infoPlist`.
-  Files can arrive before the window is created, so buffer them.
+  (rank `Alternate`, so Preview stays the default) in the app's `Info.plist`, through
+  `compose.desktop.application.nativeDistributions.macOS.infoPlist`. `main()` installs the handler before
+  the window exists (macOS queues earlier open-file events until then).
+- `IncomingPdfs` (`jvmMain/desktop`) is the one inbox for dropped files, Open With and ⌘O. It keeps the
+  latest PDF (first PDF of several files) as a `StateFlow`; `main.kt` passes it to `App(incomingDocument = …)`.
+  `App` drops a document that arrives while a job is uploading or waiting for host-key trust.
+- Menu bar: `PoolPrintMenuBar` (File → Open PDF… ⌘O, Print ⌘P). ⌘P goes through `AppCommands`
+  (`commonMain/app`): the print sheet registers its `print` action while `canPrint` is true, the menu item
+  is enabled exactly then.
 - Page count: Apache PDFBox (the allowed "PDF page-count library").
 - Private key: macOS Keychain through JNA and the Security framework, or a user-chosen existing key
   from `~/.ssh` (with its passphrase, if any, kept in the Keychain). See
   [decisions.md](decisions.md#d-04-macos-keychain-access).
-- Packaging: `.dmg` through `packageDistributionForCurrentOS` (M4). Code signing and notarisation are out of scope unless requested.
+- Packaging: `.dmg` through `packageDmg` (M4, D-18). Code signing and notarisation are out of scope unless requested.
 
 ## State and persistence
 

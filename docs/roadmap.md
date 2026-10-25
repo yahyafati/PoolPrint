@@ -10,7 +10,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done (unit-tested) · 
 | M1 — MVP | 🔶 |
 | M2 — Options & cost | 🔶 |
 | M3 — Discovery, presets, queue | 🔶 |
-| M4 — macOS polish | ⬜ |
+| M4 — macOS polish | 🔶 |
 
 ---
 
@@ -175,15 +175,30 @@ sets as presets, and see and cancel your own jobs.
 
 ### Tasks
 
-- ⬜ Drag and drop a PDF onto the window.
-- ⬜ "Open With → Pool Print" (`CFBundleDocumentTypes` and `Desktop.setOpenFileHandler`, including a cold start).
-- ⬜ `.dmg` packaging: app name, icon, bundle id, version; drop the Msi/Deb targets unless wanted.
-- ⬜ Desktop layout tweaks (window size, keyboard shortcuts: ⌘O open, ⌘P print).
+- 🔶 Drag and drop a PDF onto the window (`IncomingPdfs` and `PdfDropTarget` in `jvmMain`; the file
+  filtering and the dropped-file-list parsing are unit-tested, the drop itself has not been driven).
+- 🔶 "Open With → Pool Print" (`CFBundleDocumentTypes` in `Info.plist`, `Desktop.setOpenFileHandler`
+  installed before the window exists, the latest file buffered). The generated `Info.plist` was inspected;
+  Finder delivering a file, cold or warm, has not been tried.
+- ✅ `.dmg` packaging: "Pool Print", icon, bundle id, version, only the Dmg target (D-18). Built here
+  (`packageDmg`, 87 MB); the packaged app starts, so the jlink runtime has what sshj and PDFBox need
+  (`suggestRuntimeModules`). Not checked: opening a real PDF and counting its pages in the packaged app.
+- 🔶 Desktop layout tweaks: minimum window size, File menu with ⌘O (open) and ⌘P (print). Built, not driven.
 
 ### Manual test checklist
 
-- [ ] Drag a PDF from Finder onto the window → the print sheet opens.
+- [ ] Drag a PDF from Finder onto the window → a "Drop a PDF to print it" hint shows while hovering and
+      the print sheet opens on drop. Dragging a non-PDF shows "Only PDF files can be printed."
+- [ ] Drop a PDF while a job is uploading: nothing changes. Drop one while Settings or Queue is open: the
+      print sheet is waiting when you leave.
+- [ ] ⌘O opens the file dialog; ⌘P prints from the print sheet and is greyed out elsewhere (home,
+      Settings, while sending, with invalid page ranges).
+- [ ] The window can't be shrunk below a usable size; the print sheet is readable at the minimum.
 - [ ] Right-click a PDF in Finder → Open With → Pool Print, both while the app is closed and while it's running.
+- [ ] Open With on a PDF does not take over double-click: Preview stays the default viewer.
+- [ ] The app shows the new printer icon in the Dock and in the `.dmg` window, and is named "Pool Print".
+- [ ] In the installed app, print a PDF: the page count appears (PDFBox works inside the jlink runtime)
+      and Test connection works (sshj does too).
 - [ ] Install from the `.dmg` on a clean user account; first launch gets past Gatekeeper (expect the "unidentified developer" prompt).
 - [ ] Keychain item shows up in Keychain Access under "Pool Print" and survives an app restart.
 - [ ] The existing `~/.ssh` key option works, including with a passphrase-protected key (asked once,
