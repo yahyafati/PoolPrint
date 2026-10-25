@@ -214,7 +214,9 @@ sets as presets, and see and cancel your own jobs.
 - [ ] The window can't be shrunk below a usable size; the print sheet is readable at the minimum.
 - [ ] Right-click a PDF in Finder → Open With → Pool Print, both while the app is closed and while it's running.
 - [ ] Open With on a PDF does not take over double-click: Preview stays the default viewer.
-- [ ] The app shows the new printer icon in the Dock and in the `.dmg` window, and is named "Pool Print".
+- [ ] The app shows the lime printer-slot icon in the Dock and in the `.dmg` window, and is named "Pool Print".
+- [ ] Android launcher shows the lime printer-slot icon under circle and squircle masks, and with themed icons on
+      (Android 13+) the monochrome glyph is tinted like the other apps.
 - [ ] In the installed app, print a PDF: the page count appears (PDFBox works inside the jlink runtime)
       and Test connection works (sshj does too).
 - [ ] Install from the `.dmg` on a clean user account; first launch gets past Gatekeeper (expect the "unidentified developer" prompt).

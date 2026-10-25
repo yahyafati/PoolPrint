@@ -290,8 +290,11 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
 - **Dmg only.** The Msi and Deb targets are gone from `desktopApp/build.gradle.kts`: nothing here can build or test
   them, and the app's key storage is macOS-only anyway. Re-add them if a Windows or Linux build is ever wanted.
 - **Name and version:** `packageName = "Pool Print"` (so the bundle is `Pool Print.app`), version `1.0.0`
-  (macOS needs a major version of at least 1), bundle id unchanged. The icon is a drawn printer
-  (`desktopApp/icons/make_icon.py` regenerates `PoolPrint.icns`); the Android launcher icon is still the template one.
+  (macOS needs a major version of at least 1), bundle id unchanged. The icon is a printer slot and the sheet
+  coming out of it, ink (`#141F00`) on lime (`#C8F244`), from the Claude Design sheet. `desktopApp/icons/make_icon.py`
+  draws it from one glyph definition on the 108dp grid and writes `PoolPrint.icns` (824 px body on the 1024 canvas,
+  with a shadow) and the Android adaptive icon layers (vector foreground, also used as the themed monochrome layer;
+  the template PNG mipmaps are gone since minSdk 29 always uses the adaptive icon).
 - **Runtime modules:** `java.instrument`, `java.naming`, `java.security.jgss`, `java.sql`, `jdk.unsupported`, as
   suggested by `suggestRuntimeModules`. The packaged app starts with them; PDFBox and sshj inside it are on the
   manual checklist.
