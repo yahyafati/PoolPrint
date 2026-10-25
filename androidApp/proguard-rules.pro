@@ -19,3 +19,11 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# SSH (D-01): BouncyCastle looks algorithms up by name through its JCA provider tables. Verified on
+# API 29 and 35 with R8 (the spike failed at runtime without this rule).
+-keep class org.bouncycastle.** { *; }
+-dontwarn org.bouncycastle.**
+-dontwarn org.slf4j.**
+-dontwarn javax.naming.**
+-dontwarn org.ietf.jgss.**
+-dontwarn com.sun.jna.**
