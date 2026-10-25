@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Pool Print</string>
+
+    <!-- Common -->
+    <string name="action_back">Back</string>
+    <string name="action_next">Next</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_done">Done</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_share">Share</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_details">Details</string>
+    <string name="action_hide_details">Hide details</string>
+    <string name="action_show_key">Show my key</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_welcome_title">Welcome to Pool Print</string>
+    <string name="onboarding_welcome_body">Print PDFs on the TF pool printers from your phone or Mac. Your pool password is never needed or stored.</string>
+    <string name="onboarding_start">Get started</string>
+    <string name="onboarding_username_title">Your pool username</string>
+    <string name="onboarding_username_label">Pool username</string>
+    <string name="onboarding_key_title">Your key</string>
+    <string name="onboarding_key_body">Pool Print made a key for this device. Add its public half to your pool account once. Log in to the pool (from a pool computer, or with your password over SSH from a laptop) and run:</string>
+    <string name="onboarding_key_public_label">Public key</string>
+    <string name="onboarding_key_copy_command">Copy command</string>
+    <string name="onboarding_key_added">I added the key</string>
+    <string name="onboarding_connect_title">Test the connection</string>
+    <string name="onboarding_connect_vpn_note">Off campus you need to be connected to the university VPN.</string>
+    <string name="onboarding_connect_test">Test connection</string>
+    <string name="onboarding_connect_running">Connecting…</string>
+    <string name="onboarding_connect_success">Connected. The key works.</string>
+    <string name="onboarding_connect_finish">Finish setup</string>
+
+    <!-- Host key trust (first connection) -->
+    <string name="trust_title">First connection to this server</string>
+    <string name="trust_body">Check the fingerprint before trusting it. From a computer that already trusts the server, run ssh-keygen -lF login.informatik.uni-freiburg.de and compare.</string>
+    <string name="trust_key_type">Key type: %1$s</string>
+    <string name="trust_accept">Trust this server</string>
+    <string name="trust_decline">Cancel</string>
+
+    <!-- Home -->
+    <string name="home_title">Pool Print</string>
+    <string name="home_empty">Pick a PDF to print, or share one to Pool Print from another app.</string>
+    <string name="home_pick">Choose a PDF…</string>
+    <string name="home_status_ready">Connection set up for %1$s</string>
+
+    <!-- Print -->
+    <string name="print_title">Print</string>
+    <string name="print_printer">Printer</string>
+    <string name="print_printer_bw">b/w</string>
+    <string name="print_printer_color">colour</string>
+    <string name="print_copies">Copies</string>
+    <string name="print_copies_less">Fewer copies</string>
+    <string name="print_copies_more">More copies</string>
+    <string name="print_button">Print</string>
+    <string name="print_uploading">Sending to the printer…</string>
+    <string name="print_uploading_progress">Sending… %1$s of %2$s</string>
+    <string name="print_sent">Sent to %1$s. Collect your printout at the printer.</string>
+    <string name="print_sent_job">Sent to %1$s · job %2$s. Collect your printout at the printer.</string>
+    <string name="print_another">Print another</string>
+    <string name="print_close">Close</string>
+    <string name="document_size">%1$s</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_username">Pool username</string>
+    <string name="settings_public_key">Public key</string>
+    <string name="settings_host_key">Server host key</string>
+    <string name="settings_host_key_none">Not pinned yet. You will be asked at the next connection.</string>
+    <string name="settings_forget_host_key">Forget pinned key…</string>
+    <string name="settings_forget_confirm_title">Forget the pinned server key?</string>
+    <string name="settings_forget_confirm_body">The next connection will ask you to trust the server again. Only do this if the pool admins announced a key change.</string>
+    <string name="settings_forget_confirm_action">Forget key</string>
+    <string name="settings_regenerate">Regenerate key…</string>
+    <string name="settings_regenerate_confirm_title">Regenerate the key?</string>
+    <string name="settings_regenerate_confirm_body">Printing stops working until you add the new public key to your pool account. Remove the old line from ~/.ssh/authorized_keys.</string>
+    <string name="settings_regenerate_confirm_action">Regenerate</string>
+    <string name="settings_about">Pool Print has no backend and no telemetry. It only talks to the pool login server.</string>
+
+    <!-- Validation -->
+    <string name="validation_username_empty">Enter your pool username.</string>
+    <string name="validation_username_invalid">Pool usernames use lowercase letters, digits, dot, dash and underscore.</string>
+
+    <!-- Errors (docs/ux.md catalogue) -->
+    <string name="error_not_configured">Pool Print isn\'t set up yet. Finish the setup first.</string>
+    <string name="error_host_unreachable">Can\'t reach the pool server. Off campus? Connect to the university VPN first. Otherwise check your internet connection.</string>
+    <string name="error_auth_rejected">Key not authorized. Did you add the public key to ~/.ssh/authorized_keys on your pool account?</string>
+    <string name="error_host_key_changed_title">Warning: the server\'s identity has changed</string>
+    <string name="error_host_key_changed_body">This could be an attack. Don\'t continue unless the pool admins announced a key change. Nothing was sent.</string>
+    <string name="error_host_key_expected">Pinned fingerprint:</string>
+    <string name="error_host_key_actual">Server now presents:</string>
+    <string name="error_timeout">The server didn\'t respond in time. Try again.</string>
+    <string name="error_unknown_printer">The printer %1$s doesn\'t exist on the server. Pick another one.</string>
+    <string name="error_quota">Your print budget may be used up. Check it on the pool CUPS page (intranet).</string>
+    <string name="error_lpr_missing">The print command isn\'t available on this server.</string>
+    <string name="error_print_failed_code">Printing failed (exit code %1$d).</string>
+    <string name="error_print_failed">Printing failed.</string>
+    <string name="error_command_failed">The server returned an error (exit code %1$d).</string>
+    <string name="error_unexpected_output">The server answered, but not as expected. Is this the right server?</string>
+    <string name="error_protocol">Something went wrong with the connection.</string>
+</resources>

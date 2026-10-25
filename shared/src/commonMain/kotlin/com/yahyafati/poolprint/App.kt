@@ -1,49 +1,63 @@
 package com.yahyafati.poolprint
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.safeContentPadding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import org.jetbrains.compose.resources.painterResource
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import com.yahyafati.poolprint.app.AppDependencies
+import com.yahyafati.poolprint.pdf.PdfDocumentSource
+import com.yahyafati.poolprint.ui.HomeScreen
+import com.yahyafati.poolprint.ui.OnboardingModel
+import com.yahyafati.poolprint.ui.OnboardingScreen
+import com.yahyafati.poolprint.ui.PoolPrintTheme
+import com.yahyafati.poolprint.ui.PrintModel
+import com.yahyafati.poolprint.ui.PrintScreen
+import com.yahyafati.poolprint.ui.SettingsModel
+import com.yahyafati.poolprint.ui.SettingsScreen
 
-import poolprint.shared.generated.resources.Res
-import poolprint.shared.generated.resources.compose_multiplatform
-
+/**
+ * @param incomingDocument a PDF handed over by the platform (share sheet, Open With); [onIncomingHandled]
+ * is called once it has been taken, so it isn't delivered twice.
+ */
 @Composable
-@Preview
-fun App() {
-    MaterialTheme {
-        var showContent by remember { mutableStateOf(false) }
-        Column(
-            modifier = Modifier
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .safeContentPadding()
-                .fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Button(onClick = { showContent = !showContent }) {
-                Text("Click me!")
+fun App(
+    deps: AppDependencies,
+    incomingDocument: PdfDocumentSource? = null,
+    onIncomingHandled: () -> Unit = {},
+) {
+    PoolPrintTheme {
+        val onboarded by deps.settings.onboardingComplete.collectAsState(initial = null)
+        var document by remember { mutableStateOf<PdfDocumentSource?>(null) }
+        var showSettings by remember { mutableStateOf(false) }
+
+        LaunchedEffect(incomingDocument) {
+            if (incomingDocument != null) {
+                document = incomingDocument
+                onIncomingHandled()
             }
-            AnimatedVisibility(showContent) {
-                val greeting = remember { Greeting().greet() }
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Image(painterResource(Res.drawable.compose_multiplatform), null)
-                    Text("Compose: $greeting")
-                }
+        }
+
+        val scope = rememberCoroutineScope()
+        when {
+            onboarded == null -> Unit
+            onboarded == false -> {
+                val model = remember { OnboardingModel(deps, scope) }
+                OnboardingScreen(model, onFinished = {})
             }
+            showSettings -> {
+                val model = remember { SettingsModel(deps, scope) }
+                SettingsScreen(model, onClose = { showSettings = false })
+            }
+            document != null -> {
+                val doc = document!!
+                val model = remember(doc) { PrintModel(deps, doc, scope) }
+                PrintScreen(model, onClose = { document = null }, onShowKey = { showSettings = true })
+            }
+            else -> HomeScreen(deps, onDocument = { document = it }, onSettings = { showSettings = true })
         }
     }
 }
