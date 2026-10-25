@@ -6,6 +6,9 @@ object PrintLimits {
 
     /** Page-range input longer than this is rejected before parsing. */
     const val MAX_PAGE_RANGES_LENGTH = 200
+
+    const val MAX_PRESET_NAME = 40
+    const val MAX_PRESETS = 30
 }
 
 /** Each enum carries the only strings that can reach `lpr` for it (docs/print-options.md). */
@@ -64,9 +67,12 @@ data class PrintOptions(
     val orientation: Orientation = Orientation.PORTRAIT,
     val fitToPage: Boolean = false,
     val paperSize: PaperSize = PaperSize.A4,
+    /** Discovered printer-specific options that differ from the printer's default (M3), sorted by key. */
+    val discovered: List<DiscoveredSetting> = emptyList(),
 ) {
     init {
         require(copies in 1..PrintLimits.MAX_COPIES) { "copies out of range" }
+        require(discovered.all { it.printerName == printer.name }) { "discovered setting for another printer" }
     }
 }
 

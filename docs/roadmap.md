@@ -9,7 +9,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done (unit-tested) · 
 |---|---|
 | M1 — MVP | 🔶 |
 | M2 — Options & cost | 🔶 |
-| M3 — Discovery, presets, queue | ⬜ |
+| M3 — Discovery, presets, queue | 🔶 |
 | M4 — macOS polish | ⬜ |
 
 ---
@@ -125,29 +125,51 @@ last-used printer and options.
 
 ## M3 — Discovery, presets, queue
 
+**Goal:** learn the printers and their options from the server (with a silent fallback), save option
+sets as presets, and see and cancel your own jobs.
+
 ### Tasks
 
-- ⬜ `LpstatParser` and `LpoptionsParser`, with fixtures (real captures preferred).
-- ⬜ Discovery service: fetch, cache per printer, manual refresh, silent fallback.
-- ⬜ Generated controls for discovered options; validation against the cache; collision filtering.
-- ⬜ Presets: create, rename, delete, apply; preset dropdown on the print sheet.
-- ⬜ `LpqParser`; Queue screen; cancel own job through `lprm`, with confirmation.
-- ⬜ Injection tests for discovered keys and values and for job ids.
+- ✅ `LpstatParser` and `LpoptionsParser`, with fixtures. **The fixtures are synthetic** (modelled on the
+  CUPS docs, `commonTest/.../core/discovery/Fixtures.kt`); real captures are still wanted (open question 1).
+- 🔶 Discovery service (`DiscoveryService`): fetch, cache per printer (persisted, 24 h staleness), manual
+  refresh in Settings, silent fallback. Unit-tested with `FakeSshClient`; the real server output is unseen.
+- 🔶 Generated controls for discovered options; validation against the cache; collision filtering.
+  (Model and validators are unit-tested; the dropdowns themselves have not been looked at.)
+- 🔶 Presets: create (print sheet), rename and delete (Presets screen), apply, preset dropdown on the
+  print sheet. (Logic unit-tested; screens not looked at.)
+- 🔶 `LpqParser`; Queue screen; cancel own job through `lprm`, with confirmation. (Logic unit-tested;
+  screen not looked at; no pull-to-refresh yet, only a Refresh button.)
+- ✅ Injection tests for discovered keys and values and for job ids.
 
 ### Acceptance criteria
 
-- The app is fully usable with discovery failing (tested with `FakeSshClient` returning errors or garbage).
-- A discovered value that isn't in the cache can't reach the command (tested).
-- Only own jobs can be cancelled (tested).
+- ✅ The app is fully usable with discovery failing (tested with `FakeSshClient` returning errors, non-zero
+  exits, empty output, localised text and garbage, in `PrintModelDiscoveryTest` and `DiscoveryServiceTest`).
+- ✅ A discovered value that isn't in the cache can't reach the command (`DiscoveryCommandBuildersTest`,
+  `PrintModelDiscoveryTest`).
+- ✅ Only own jobs can be cancelled (`QueueServiceTest`, `QueueModelTest`, `DiscoveryCommandBuildersTest`).
 
 ### Manual test checklist
 
 - [ ] `lpstat -p` and `lpoptions -p tfppr… -l` run on the login server. Paste the real outputs so they can become fixtures.
+- [ ] Also paste `lpq -P tfppr1` with and without jobs, and say how many printers `lpstat -p` lists (the
+      app keeps at most 100; the printer dropdown shows all of them).
 - [ ] The discovered options for each printer look sensible, and changing one (e.g. colour mode) has the expected effect.
-- [ ] Queue shows your job while it's printing; Cancel removes it; other users' jobs can't be cancelled.
-- [ ] A preset applied from the share sheet prints in ≤ 3 taps.
-
----
+- [ ] The printer dropdown shows idle / printing / disabled for each printer; a printer that is not
+      tfppr1–4 is labelled "type unknown, billed as colour".
+- [ ] Off campus without VPN (or airplane mode): the print sheet still opens, shows "Using default printer
+      settings." and printing is unaffected.
+- [ ] Settings → Refresh printers and options: shows the count and a time; a failure keeps the old data.
+- [ ] Queue shows your job while it's printing; Cancel (after the confirmation) removes it; other users' jobs have no Cancel.
+- [ ] A preset applied from the share sheet prints in ≤ 3 taps (open the dropdown, pick the preset, Print).
+- [ ] Save a preset with a long name, a name with quotes and a duplicate name; rename and delete one.
+- [ ] A job printed through Pool Print appears in the queue as `(stdin)`; confirm the Rank/Owner/Job columns
+      parse (the owner must equal your pool username, or nothing is marked as yours).
+- [ ] Does the server print `lpstat` in English? If it is localised the printer list stays empty
+      (the app then uses its built-in list).
+- [ ] Look at the new screens on Android and macOS (print sheet with generated controls, Presets, Queue,
+      Settings): layout, long option labels, dark mode.
 
 ## M4 — macOS polish
 

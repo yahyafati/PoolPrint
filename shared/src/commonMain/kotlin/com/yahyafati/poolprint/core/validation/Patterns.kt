@@ -11,5 +11,8 @@ internal object Patterns {
     /** One page range: `7` or `2-9`. Pages start at 1 and have at most five digits. */
     val PageRange = Regex("^([1-9][0-9]{0,4})(?:-([1-9][0-9]{0,4}))?$")
 
+    /** A CUPS job id from `lpq`: digits only. */
+    val JobId = Regex("^[0-9]{1,9}$")
+
     val PoolUsername = Regex("^[a-z0-9_][a-z0-9_.-]{0,31}$")
 }

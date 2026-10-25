@@ -40,6 +40,21 @@ fun SettingsScreen(model: SettingsModel, onClose: () -> Unit) {
             SelectionContainer { Text(pinned.fingerprint, fontFamily = FontFamily.Monospace) }
             OutlinedButton(onClick = { model.ask(SettingsConfirm.ForgetHostKey) }) { Text(stringResource(Res.string.settings_forget_host_key)) }
         }
+        Text(stringResource(Res.string.settings_discovery), style = MaterialTheme.typography.labelLarge)
+        val updatedAt = state.discoveryUpdatedAt
+        Text(
+            if (updatedAt == null) stringResource(Res.string.settings_discovery_never)
+            else stringResource(Res.string.settings_discovery_updated, state.discoveryPrinterCount, formatTimestamp(updatedAt)),
+        )
+        OutlinedButton(onClick = model::refreshDiscovery, enabled = state.discoveryRefresh != DiscoveryRefresh.Running) {
+            Text(stringResource(if (state.discoveryRefresh == DiscoveryRefresh.Running) Res.string.settings_discovery_running else Res.string.settings_discovery_refresh))
+        }
+        when (state.discoveryRefresh) {
+            DiscoveryRefresh.Updated -> Text(stringResource(Res.string.settings_discovery_done))
+            DiscoveryRefresh.Unavailable -> Text(stringResource(Res.string.settings_discovery_failed))
+            DiscoveryRefresh.NeedsTrust -> Text(stringResource(Res.string.settings_discovery_trust))
+            else -> Unit
+        }
         OutlinedButton(onClick = { model.ask(SettingsConfirm.RegenerateKey) }) { Text(stringResource(Res.string.settings_regenerate)) }
         Text(stringResource(Res.string.settings_about), style = MaterialTheme.typography.bodySmall)
     }

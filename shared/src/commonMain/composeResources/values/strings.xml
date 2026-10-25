@@ -14,6 +14,10 @@
     <string name="action_details">Details</string>
     <string name="action_hide_details">Hide details</string>
     <string name="action_show_key">Show my key</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_save">Save</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_delete">Delete</string>
 
     <!-- Onboarding -->
     <string name="onboarding_welcome_title">Welcome to Pool Print</string>
@@ -45,6 +49,8 @@
     <string name="home_empty">Pick a PDF to print, or share one to Pool Print from another app.</string>
     <string name="home_pick">Choose a PDF…</string>
     <string name="home_status_ready">Connection set up for %1$s</string>
+    <string name="home_queue">Print queue</string>
+    <string name="home_presets">Presets</string>
 
     <!-- Print -->
     <string name="print_title">Print</string>
@@ -82,6 +88,50 @@
     <string name="print_another">Print another</string>
     <string name="print_close">Close</string>
     <string name="document_size">%1$s</string>
+    <string name="print_printer_unknown_type">type unknown, billed as colour</string>
+    <string name="print_printer_state_idle">idle</string>
+    <string name="print_printer_state_printing">printing</string>
+    <string name="print_printer_state_disabled">disabled</string>
+    <string name="print_defaults_hint">Using default printer settings.</string>
+    <string name="print_defaults_refresh">Refreshing printer settings…</string>
+    <string name="print_printer_options">Printer options</string>
+    <string name="print_option_default">%1$s (default)</string>
+
+    <!-- Presets -->
+    <string name="preset_label">Preset</string>
+    <string name="preset_none">None</string>
+    <string name="preset_custom">Custom</string>
+    <string name="preset_save">Save as preset…</string>
+    <string name="preset_save_title">Save as preset</string>
+    <string name="preset_name_label">Preset name</string>
+    <string name="preset_save_note">Stores the printer and these options, but not copies or page ranges.</string>
+    <string name="preset_rename_title">Rename preset</string>
+    <string name="preset_delete_title">Delete this preset?</string>
+    <string name="preset_delete_body">%1$s will be removed. Your documents and other presets are not affected.</string>
+    <string name="presets_title">Presets</string>
+    <string name="presets_empty">No presets yet. Set up a print, then choose “Save as preset…” on the print sheet.</string>
+    <string name="presets_summary">%1$s · %2$s</string>
+    <string name="validation_preset_empty">Enter a name.</string>
+    <string name="validation_preset_too_long">Use at most %1$d characters, without line breaks.</string>
+    <string name="validation_preset_taken">There is already a preset with that name.</string>
+    <string name="validation_preset_limit">That is the maximum number of presets. Delete one first.</string>
+    <string name="validation_preset_missing">That preset no longer exists.</string>
+
+    <!-- Queue -->
+    <string name="queue_title">Print queue</string>
+    <string name="queue_printer">Printer</string>
+    <string name="queue_empty">Nothing is waiting on this printer.</string>
+    <string name="queue_loading">Loading the queue…</string>
+    <string name="queue_entry">Job %1$s · %2$s</string>
+    <string name="queue_entry_detail">%1$s · %2$s · %3$s</string>
+    <string name="queue_own">Yours</string>
+    <string name="queue_cancel_job">Cancel job</string>
+    <string name="queue_cancel_title">Cancel job %1$s?</string>
+    <string name="queue_cancel_body">The job is removed from %1$s and nothing will be printed for it.</string>
+    <string name="queue_cancel_keep">Keep it</string>
+    <string name="queue_cancel_confirm">Cancel the job</string>
+    <string name="queue_notice_cancelled">The job was cancelled.</string>
+    <string name="queue_notice_not_allowed">That job is not yours, or it has already left the queue. The list was refreshed.</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
@@ -97,6 +147,14 @@
     <string name="settings_regenerate_confirm_title">Regenerate the key?</string>
     <string name="settings_regenerate_confirm_body">Printing stops working until you add the new public key to your pool account. Remove the old line from ~/.ssh/authorized_keys.</string>
     <string name="settings_regenerate_confirm_action">Regenerate</string>
+    <string name="settings_discovery">Printers and options</string>
+    <string name="settings_discovery_never">Not fetched yet. Pool Print uses its built-in printer list.</string>
+    <string name="settings_discovery_updated">%1$d printers known · updated %2$s</string>
+    <string name="settings_discovery_refresh">Refresh printers and options</string>
+    <string name="settings_discovery_running">Refreshing…</string>
+    <string name="settings_discovery_done">Updated.</string>
+    <string name="settings_discovery_failed">Couldn\'t read the printers from the server. The app keeps using what it has.</string>
+    <string name="settings_discovery_trust">Trust the server first: print or test the connection once.</string>
     <string name="settings_about">Pool Print has no backend and no telemetry. It only talks to the pool login server.</string>
 
     <!-- Validation -->

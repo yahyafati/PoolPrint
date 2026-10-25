@@ -6,7 +6,7 @@ import com.yahyafati.poolprint.core.model.PrintJob
 
 /**
  * `lpr -P <printer> [-# <copies>] -o sides=<…> [-o number-up=<n>] [-o page-ranges=<r>] [-o landscape]
- * [-o fit-to-page] -o media=<size>`, in this fixed order (docs/print-options.md). The document comes in on
+ * [-o fit-to-page] -o media=<size> [-o <Key>=<Value> …discovered]`, in this fixed order (docs/print-options.md). The document comes in on
  * stdin: no filename, no job title, no file argument. Takes typed values only; every string comes from an
  * enum's mapping table or from [com.yahyafati.poolprint.core.model.PageRanges.canonical];
  * [PrintJob.documentName] is deliberately never read.
@@ -28,6 +28,10 @@ object LprCommandBuilder {
             if (options.orientation == Orientation.LANDSCAPE) option("landscape")
             if (options.fitToPage) option("fit-to-page")
             option("media=${options.paperSize.cupsValue}")
+            for (setting in options.discovered.sortedBy { it.key }) {
+                require(setting.printerName == options.printer.name) { "discovered setting for another printer" }
+                option("${setting.key}=${setting.value}")
+            }
         }
         return RemoteCommand.fromTokens(tokens)
     }

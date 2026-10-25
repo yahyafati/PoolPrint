@@ -83,7 +83,8 @@ The remote side runs the command string through the user's **login shell** on th
 That's usually a POSIX shell, but csh-family shells exist. So defence is layered:
 
 1. **Typed inputs only.** Builders accept enums, validated integers, `PageRanges`, a `Printer` from the
-   known list and `DiscoveredOption` values from the parsed cache. No `String` from the UI goes in directly.
+   known list and `DiscoveredSetting` values (made only by `Validators.discoveredSetting` from the cached `lpoptions` of that printer) and
+   `OwnedJobId` for `lprm` (digits, in the latest `lpq`, owned by the user). No `String` from the UI goes in directly.
 2. **Allow-list validation.** See [print-options.md](print-options.md#validation-rules). Identifiers must
    match `^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}$`. The first character can't be `-`, which prevents option
    injection. Anything else is **rejected**, never sanitised or escaped into acceptance.

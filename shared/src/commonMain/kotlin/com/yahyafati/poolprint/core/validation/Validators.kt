@@ -1,9 +1,15 @@
 package com.yahyafati.poolprint.core.validation
 
+import com.yahyafati.poolprint.core.discovery.LpoptionsParser
+import com.yahyafati.poolprint.core.discovery.PrinterCapabilities
+import com.yahyafati.poolprint.core.model.DiscoveredSetting
 import com.yahyafati.poolprint.core.model.PageRanges
+import com.yahyafati.poolprint.core.model.PoolUsername
 import com.yahyafati.poolprint.core.model.PrintLimits
 import com.yahyafati.poolprint.core.model.Printer
 import com.yahyafati.poolprint.core.model.Printers
+import com.yahyafati.poolprint.core.queue.OwnedJobId
+import com.yahyafati.poolprint.core.queue.QueueSnapshot
 
 /** Turns raw UI input into typed values. Invalid input is rejected, never sanitised into acceptance. */
 object Validators {
@@ -61,5 +67,48 @@ object Validators {
             return Validated.Invalid(ValidationError.PageRangeBeyondDocument(lastPage))
         }
         return Validated.Valid(ranges)
+    }
+
+    /**
+     * A discovered option choice for the printer [capabilities] belongs to. The key must match the identifier
+     * pattern, be in the cached options and not collide with a standard control; the value must be one of
+     * that option's parsed values and match the pattern. Anything else is rejected, never cleaned up.
+     */
+    fun discoveredSetting(capabilities: PrinterCapabilities, key: String, value: String): Validated<DiscoveredSetting> {
+        if (!Patterns.Identifier.matches(key) || LpoptionsParser.collidesWithStandard(key)) {
+            return Validated.Invalid(ValidationError.OptionUnknown)
+        }
+        val option = capabilities.option(key) ?: return Validated.Invalid(ValidationError.OptionUnknown)
+        if (!Patterns.Identifier.matches(value) || value !in option.values) {
+            return Validated.Invalid(ValidationError.OptionValueInvalid)
+        }
+        return Validated.Valid(DiscoveredSetting(capabilities.printerName, key, value))
+    }
+
+    /**
+     * A job to cancel with `lprm`: digits only, present in the latest `lpq` result [queue] and owned by
+     * [username]. Other people's jobs are rejected.
+     */
+    fun ownedJobId(raw: String, queue: QueueSnapshot, username: PoolUsername): Validated<OwnedJobId> {
+        if (!Patterns.JobId.matches(raw)) return Validated.Invalid(ValidationError.JobIdInvalid)
+        val entry = queue.entries.firstOrNull { it.jobId == raw } ?: return Validated.Invalid(ValidationError.JobNotFound)
+        if (entry.owner != username.value) return Validated.Invalid(ValidationError.JobNotOwned)
+        return Validated.Valid(OwnedJobId(queue.printerName, entry.jobId))
+    }
+
+    /**
+     * A preset name is free text kept on the device only; it never reaches a command. Trimmed, 1 to
+     * [PrintLimits.MAX_PRESET_NAME] characters, no control characters, and not used by another preset
+     * ([otherNames], compared ignoring case).
+     */
+    fun presetName(raw: String, otherNames: List<String>): Validated<String> {
+        val name = raw.trim()
+        return when {
+            name.isEmpty() -> Validated.Invalid(ValidationError.PresetNameEmpty)
+            name.length > PrintLimits.MAX_PRESET_NAME || name.any { it.isISOControl() } ->
+                Validated.Invalid(ValidationError.PresetNameTooLong(PrintLimits.MAX_PRESET_NAME))
+            otherNames.any { it.equals(name, ignoreCase = true) } -> Validated.Invalid(ValidationError.PresetNameTaken)
+            else -> Validated.Valid(name)
+        }
     }
 }

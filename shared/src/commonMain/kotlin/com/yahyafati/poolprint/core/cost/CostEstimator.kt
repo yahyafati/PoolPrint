@@ -18,7 +18,7 @@ object CostRates {
     /** A third of the monthly budget (6 €): worth a warning on the Print button. */
     const val WARNING_THRESHOLD_CENTS = 200
 
-    fun centsPerPage(type: PrinterType): Int = if (type == PrinterType.BW) BW_CENTS else COLOR_CENTS
+    fun centsPerPage(type: PrinterType): Int = if (type == PrinterType.BW) BW_CENTS else COLOR_CENTS // UNKNOWN is billed as colour
 }
 
 /** The two open questions, as settings with the documented defaults. Flip them once the manual checks are done. */

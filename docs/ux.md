@@ -40,7 +40,7 @@ After onboarding, nothing asks for a password or passphrase again (A-11).
 
 - An empty state with **Pick a PDF** (Android) or **Drop a PDF here / Choose file…** (macOS).
 - Status chip: connection configured / not configured.
-- Entry points: Queue (M3), Presets (M3), Settings.
+- Entry points: Queue, Presets, Settings.
 
 ### Print sheet (main flow)
 
@@ -50,14 +50,14 @@ Opens when a PDF arrives (share, pick, drop, Open With).
 ┌──────────────────────────────────────────┐
 │ 📄 lecture-05.pdf · 24 pages             │
 │                                          │
-│ Preset   [ Lecture slides ▾ ]   (M3)     │
+│ Preset   [ Lecture slides ▾ ] [Save…]    │
 │ Printer  [ tfppr1 · b/w ▾ ]              │
 │ Copies   [ – 1 + ]   Duplex [Long edge▾] │
 │                                          │
 │ ▸ Advanced options                       │
 │   Pages per sheet · Page ranges ·        │
 │   Orientation · Fit to page · Paper ·    │
-│   printer-specific options (M3)          │
+│   printer-specific options (generated)   │
 │                                          │
 │ [   Print · 12 pages · 0.60 €   ]        │
 └──────────────────────────────────────────┘
@@ -72,12 +72,13 @@ Opens when a PDF arrives (share, pick, drop, Open With).
 ### Queue (M3)
 
 A printer selector, then a list of entries (rank, owner, job id, size). Own jobs are highlighted and
-have **Cancel** (with a confirmation step). Pull to refresh on Android, a refresh button on desktop.
+have **Cancel** (with a confirmation step). A Refresh button on both platforms (pull-to-refresh is not built).
 
 ### Presets (M3)
 
 A list of named option sets, e.g. "Lecture slides: 2-up, duplex, b/w". Save the current options as a
-preset from the print sheet. A preset stores the printer and all options, but no page ranges.
+preset from the print sheet ("Save as preset…"); rename and delete them on the Presets screen. A preset
+stores the printer, layout options and changed discovered options, but no copies and no page ranges (D-15).
 
 ### Settings
 
