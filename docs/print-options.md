@@ -150,14 +150,19 @@ Parser contract:
   `number-up`, `page-ranges`, `copies`, `orientation-requested`, `landscape`, `fit-to-page`. The standard
   control wins.
 - Remaining options become generated controls (a dropdown with the label and default value). A
-  discovered option is only sent when the user changes it from the default.
+  discovered option is only sent when the user changes it from the default. Options with a single value
+  get no control.
+- Limits (D-16): 100 printers, 60 options, 40 values per option; labels lose control characters and are cut at 80.
+- `LpoptionsParser.parse` returns the options plus `recognizedLines`; zero recognised lines counts as
+  "unexpected output" and the cache is left alone.
+- Discovered settings are typed `DiscoveredSetting(printerName, key, value)` values made only by
+  `Validators.discoveredSetting`; `lpr` sends them last, sorted by key, after `media`.
 
 ### Fixtures
 
-Store sample outputs as text files under `shared/src/commonTest/resources/fixtures/` (or as Kotlin
-string constants, if resource loading in `commonTest` gets awkward):
-`lpstat-p.txt`, `lpoptions-tfppr1.txt` … `lpoptions-tfppr4.txt`, `lpq-empty.txt`, `lpq-jobs.txt`,
-plus malformed or localised variants.
+The samples are Kotlin string constants in `shared/src/commonTest/kotlin/.../core/discovery/Fixtures.kt`
+(`lpstat`, `lpoptions`, `lpqEmpty`, `lpqJobs`); malformed and localised variants are inline in the tests.
+Real captures should be added next to them.
 
 **The samples above are synthetic.** Replace them with real captures from the pool once the owner
 provides them (see [decisions.md](decisions.md#open-questions)).
@@ -177,7 +182,8 @@ active  doej    1234    (stdin)                         482304 bytes
 
 or `tfppr1 is ready` followed by `no entries`.
 
-- Parse the rows after the header into `QueueEntry(rank, owner, jobId, fileLabel, sizeBytes)`.
+- Parse the rows after the header into `QueueEntry(rank, owner, jobId, fileLabel, sizeBytes)`. Rows that
+  don't have the shape are skipped; text with no status line, header or rows is rejected as unexpected output.
 - "Own" means `owner == poolUsername`. Only own entries get a Cancel action.
 - Jobs printed through Pool Print show up as `(stdin)` or similar, because no title is sent. That's expected.
 - Cancel: `lprm -P <printer> <jobId>`, after confirmation, then refresh.

@@ -7,11 +7,14 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.yahyafati.poolprint.core.model.PoolUsername
 import com.yahyafati.poolprint.core.model.PrintOptions
+import com.yahyafati.poolprint.core.model.Printer
 import com.yahyafati.poolprint.hostkeys.HostKeyStore
 import com.yahyafati.poolprint.hostkeys.PinnedHostKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import com.yahyafati.poolprint.core.discovery.DiscoverySnapshot
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 class DataStoreAppSettings(private val store: DataStore<Preferences>) : AppSettings {
@@ -34,7 +37,8 @@ class DataStoreAppSettings(private val store: DataStore<Preferences>) : AppSetti
         store.edit { it[ONBOARDED] = complete }
     }
 
-    override suspend fun getPrintDefaults(): PrintOptions = StoredPrintOptions.fromJson(store.data.first()[PRINT_DEFAULTS])
+    override suspend fun getPrintDefaults(known: List<Printer>): PrintOptions =
+        StoredPrintOptions.fromJson(store.data.first()[PRINT_DEFAULTS], known)
 
     override suspend fun setPrintDefaults(options: PrintOptions) {
         store.edit { it[PRINT_DEFAULTS] = StoredPrintOptions.from(options).toJson() }
@@ -62,4 +66,34 @@ class DataStoreHostKeyStore(private val store: DataStore<Preferences>) : HostKey
     }
 
     private fun keyFor(host: String, port: Int) = stringPreferencesKey("hostkey:$host:$port")
+}
+
+/** The discovery cache (M3): one JSON value. Unreadable or tampered data gives an empty snapshot. */
+class DataStoreDiscoveryStore(private val store: DataStore<Preferences>) : DiscoveryStore {
+    override suspend fun load(): DiscoverySnapshot =
+        store.data.first()[KEY]?.let { runCatching { Json.decodeFromString<DiscoverySnapshot>(it) }.getOrNull() }
+            ?.sanitized() ?: DiscoverySnapshot()
+
+    override suspend fun save(snapshot: DiscoverySnapshot) {
+        store.edit { it[KEY] = Json.encodeToString(DiscoverySnapshot.serializer(), snapshot) }
+    }
+
+    private companion object {
+        val KEY = stringPreferencesKey("discovery_cache")
+    }
+}
+
+/** Presets (M3): a JSON list. Entries that fail to decode are lost with the list, which then reads as empty. */
+class DataStorePresetStore(private val store: DataStore<Preferences>) : PresetStore {
+    override val presets: Flow<List<Preset>> = store.data.map { prefs ->
+        prefs[KEY]?.let { runCatching { Json.decodeFromString<List<Preset>>(it) }.getOrNull() }.orEmpty()
+    }
+
+    override suspend fun save(presets: List<Preset>) {
+        store.edit { it[KEY] = Json.encodeToString(ListSerializer(Preset.serializer()), presets) }
+    }
+
+    private companion object {
+        val KEY = stringPreferencesKey("presets")
+    }
 }

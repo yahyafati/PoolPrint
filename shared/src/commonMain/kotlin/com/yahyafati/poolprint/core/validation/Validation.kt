@@ -8,6 +8,16 @@ sealed interface ValidationError {
     data object PageRangesTooLong : ValidationError
     data object PageRangeReversed : ValidationError
     data class PageRangeBeyondDocument(val lastPage: Int) : ValidationError
+    data object OptionUnknown : ValidationError
+    data object OptionValueInvalid : ValidationError
+    data object JobIdInvalid : ValidationError
+    data object JobNotFound : ValidationError
+    data object JobNotOwned : ValidationError
+    data object PresetNotFound : ValidationError
+    data object PresetNameEmpty : ValidationError
+    data class PresetNameTooLong(val max: Int) : ValidationError
+    data object PresetNameTaken : ValidationError
+    data object TooManyPresets : ValidationError
     data object UsernameEmpty : ValidationError
     data object UsernameInvalid : ValidationError
 }

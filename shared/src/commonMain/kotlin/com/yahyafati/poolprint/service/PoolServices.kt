@@ -1,6 +1,7 @@
 package com.yahyafati.poolprint.service
 
 import com.yahyafati.poolprint.core.command.LprCommandBuilder
+import com.yahyafati.poolprint.core.command.RemoteCommand
 import com.yahyafati.poolprint.core.command.TestConnectionCommand
 import com.yahyafati.poolprint.core.model.PrintJob
 import com.yahyafati.poolprint.hostkeys.HostKeyStore
@@ -13,6 +14,7 @@ import com.yahyafati.poolprint.transport.SshClient
 import com.yahyafati.poolprint.transport.SshClientFactory
 import com.yahyafati.poolprint.transport.SshError
 import com.yahyafati.poolprint.transport.SshException
+import com.yahyafati.poolprint.transport.SshResult
 import kotlin.coroutines.cancellation.CancellationException
 
 sealed interface TestConnectionResult {
@@ -31,6 +33,16 @@ sealed interface PrintResult {
     data class NeedsTrust(val key: PinnedHostKey) : PrintResult
 
     data class Failed(val failure: UserFailure) : PrintResult
+}
+
+/** The outcome of one remote command that isn't `lpr`: discovery and queue commands go through [PoolServices.run]. */
+sealed interface RemoteOutcome {
+    /** The command ran; a non-zero exit code is for the caller to judge. */
+    data class Done(val result: SshResult) : RemoteOutcome
+
+    data class NeedsTrust(val key: PinnedHostKey) : RemoteOutcome
+
+    data class Failed(val failure: UserFailure) : RemoteOutcome
 }
 
 /** Test connection and print, on top of [SshClient]. Holds no state. */
@@ -97,6 +109,24 @@ class PoolServices(
             }
         } finally {
             runCatching { document.close() }
+        }
+    }
+
+    /**
+     * Runs a command built by one of the `core.command` builders (so it is already validated and quoted) and
+     * maps transport failures to a [RemoteOutcome]. Used by discovery and the queue.
+     */
+    suspend fun run(command: RemoteCommand, timeoutMs: Long = SshClient.DEFAULT_TIMEOUT_MS): RemoteOutcome {
+        val client = client() ?: return RemoteOutcome.Failed(UserFailure(FailureKind.NotConfigured))
+        return try {
+            RemoteOutcome.Done(client.exec(command, timeoutMs = timeoutMs))
+        } catch (e: SshException) {
+            val error = e.error
+            if (error is SshError.HostKeyUnknown) {
+                RemoteOutcome.NeedsTrust(PinnedHostKey(error.keyType, error.fingerprint))
+            } else {
+                RemoteOutcome.Failed(ErrorCatalogue.fromTransport(error))
+            }
         }
     }
 

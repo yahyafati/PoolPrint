@@ -5,6 +5,8 @@ import com.yahyafati.poolprint.core.model.Orientation
 import com.yahyafati.poolprint.core.model.PagesPerSheet
 import com.yahyafati.poolprint.core.model.PaperSize
 import com.yahyafati.poolprint.core.model.PrintOptions
+import com.yahyafati.poolprint.core.model.Printer
+import com.yahyafati.poolprint.core.model.Printers
 import com.yahyafati.poolprint.core.validation.Validators
 import com.yahyafati.poolprint.core.validation.valueOrNull
 import kotlinx.serialization.Serializable
@@ -24,10 +26,11 @@ data class StoredPrintOptions(
     val fitToPage: Boolean? = null,
     val paperSize: String? = null,
 ) {
-    fun toOptions(): PrintOptions {
+    /** [known] is the current printer list (hardcoded plus discovered); a printer not in it falls back to the default. */
+    fun toOptions(known: List<Printer> = Printers.all): PrintOptions {
         val base = PrintOptions()
         return base.copy(
-            printer = printer?.let { Validators.printer(it).valueOrNull() } ?: base.printer,
+            printer = printer?.let { Validators.printer(it, known).valueOrNull() } ?: base.printer,
             duplex = Duplex.entries.firstOrNull { it.name == duplex } ?: base.duplex,
             pagesPerSheet = PagesPerSheet.entries.firstOrNull { it.count == pagesPerSheet } ?: base.pagesPerSheet,
             orientation = Orientation.entries.firstOrNull { it.name == orientation } ?: base.orientation,
@@ -51,7 +54,7 @@ data class StoredPrintOptions(
         )
 
         /** Unreadable JSON gives the defaults. */
-        fun fromJson(text: String?): PrintOptions =
-            text?.let { runCatching { json.decodeFromString(serializer(), it) }.getOrNull() }?.toOptions() ?: PrintOptions()
+        fun fromJson(text: String?, known: List<Printer> = Printers.all): PrintOptions =
+            text?.let { runCatching { json.decodeFromString(serializer(), it) }.getOrNull() }?.toOptions(known) ?: PrintOptions()
     }
 }

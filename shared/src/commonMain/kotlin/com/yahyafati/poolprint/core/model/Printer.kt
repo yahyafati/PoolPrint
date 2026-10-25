@@ -2,7 +2,8 @@ package com.yahyafati.poolprint.core.model
 
 import com.yahyafati.poolprint.core.validation.Patterns
 
-enum class PrinterType { BW, COLOR }
+/** [UNKNOWN] is a printer found by discovery that isn't in the hardcoded table: billed as colour, the conservative choice. */
+enum class PrinterType { BW, COLOR, UNKNOWN }
 
 /** A pool printer. The name is validated on construction, so a hostile name can't become a [Printer]. */
 data class Printer(val name: String, val type: PrinterType) {
@@ -21,4 +22,7 @@ object Printers {
     )
 
     val default: Printer = all.first()
+
+    /** The hardcoded printer wins (it knows b/w vs colour); an unknown valid name gets [PrinterType.UNKNOWN]. */
+    fun resolve(name: String): Printer = all.firstOrNull { it.name == name } ?: Printer(name, PrinterType.UNKNOWN)
 }

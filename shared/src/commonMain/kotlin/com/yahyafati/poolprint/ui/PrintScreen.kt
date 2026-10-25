@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.FilterChip
@@ -16,14 +17,18 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.yahyafati.poolprint.core.discovery.DiscoveredOption
+import com.yahyafati.poolprint.core.discovery.PrinterState
 import com.yahyafati.poolprint.core.model.Duplex
 import com.yahyafati.poolprint.core.model.Orientation
 import com.yahyafati.poolprint.core.model.PagesPerSheet
@@ -31,14 +36,17 @@ import com.yahyafati.poolprint.core.model.PaperSize
 import com.yahyafati.poolprint.core.model.PrintOptions
 import com.yahyafati.poolprint.core.model.Printer
 import com.yahyafati.poolprint.core.model.PrinterType
-import com.yahyafati.poolprint.core.model.Printers
 import com.yahyafati.poolprint.core.validation.ValidationError
+import com.yahyafati.poolprint.settings.Preset
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import poolprint.shared.generated.resources.*
 
 @Composable
 fun PrintScreen(model: PrintModel, onClose: () -> Unit, onShowKey: () -> Unit) {
     val state by model.state.collectAsState()
+    // Looks at the server when the sheet opens and when the printer changes; failure is silent.
+    LaunchedEffect(model, state.printer.name) { model.refreshDiscovery() }
     ScreenColumn {
         Text(stringResource(Res.string.print_title), style = MaterialTheme.typography.headlineMedium)
         Text(state.document.displayName, style = MaterialTheme.typography.titleMedium)
@@ -68,11 +76,12 @@ fun PrintScreen(model: PrintModel, onClose: () -> Unit, onShowKey: () -> Unit) {
 
             else -> {
                 val options = state.options
+                PresetRow(state, model)
                 DropdownRow(
                     label = stringResource(Res.string.print_printer),
-                    items = Printers.all,
+                    items = state.knownPrinters,
                     selected = options.printer,
-                    text = { printerLabel(it) },
+                    text = { printerLabel(it, state.printerState(it)) },
                     onSelect = { model.selectPrinter(it.name) },
                 )
                 CopiesStepper(state.copies, model.maxCopies, model::decrementCopies, model::incrementCopies)
@@ -162,7 +171,93 @@ private fun AdvancedOptions(state: PrintState, model: PrintModel) {
             text = { it.cupsValue },
             onSelect = model::setPaperSize,
         )
+        DiscoveredControls(state, model)
     }
+}
+
+/** Dropdowns generated from the printer's cached `lpoptions`; the default value is not sent. */
+@Composable
+private fun DiscoveredControls(state: PrintState, model: PrintModel) {
+    val controls = state.discoveredControls
+    if (controls.isNotEmpty()) {
+        Text(stringResource(Res.string.print_printer_options), style = MaterialTheme.typography.labelLarge)
+        for (option in controls) {
+            val selected = state.selectedValue(option)
+            DropdownRow(
+                label = option.label,
+                items = option.values,
+                selected = selected ?: option.values.first(),
+                text = { optionValueText(option, it) },
+                onSelect = { model.setDiscovered(option.key, it) },
+            )
+        }
+    }
+    when {
+        state.discoveryStatus == DiscoveryStatus.Refreshing && state.capabilities == null ->
+            Text(stringResource(Res.string.print_defaults_refresh), style = MaterialTheme.typography.bodySmall)
+        state.usingDefaults ->
+            Text(stringResource(Res.string.print_defaults_hint), style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+private fun optionValueText(option: DiscoveredOption, value: String): String =
+    if (value == option.default) stringResource(Res.string.print_option_default, value) else value
+
+/** The preset dropdown (when there are presets) and "Save as preset…". */
+@Composable
+private fun PresetRow(state: PrintState, model: PrintModel) {
+    var saving by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text(stringResource(Res.string.preset_label))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (state.presets.isNotEmpty()) {
+                Box {
+                    OutlinedButton(onClick = { expanded = true }) {
+                        Text((state.activePreset?.name ?: stringResource(Res.string.preset_custom)) + " ▾")
+                    }
+                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        for (preset in state.presets) {
+                            DropdownMenuItem(text = { Text(preset.name) }, onClick = { model.applyPreset(preset.id); expanded = false })
+                        }
+                    }
+                }
+            }
+            TextButton(onClick = { saving = true }) { Text(stringResource(Res.string.preset_save)) }
+        }
+    }
+    if (saving) SavePresetDialog(model, onDismiss = { saving = false })
+}
+
+@Composable
+private fun SavePresetDialog(model: PrintModel, onDismiss: () -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<ValidationError?>(null) }
+    val scope = rememberCoroutineScope()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(Res.string.preset_save_title)) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it; error = null },
+                label = { Text(stringResource(Res.string.preset_name_label)) },
+                supportingText = { Text(error?.let { presetErrorText(it) } ?: stringResource(Res.string.preset_save_note)) },
+                isError = error != null,
+                singleLine = true,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                scope.launch {
+                    val result = model.savePreset(name)
+                    if (result == null) onDismiss() else error = result
+                }
+            }) { Text(stringResource(Res.string.action_save)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) } },
+    )
 }
 
 @Composable
@@ -232,9 +327,21 @@ private fun <T> ChoiceRow(label: String, items: List<T>, selected: T, text: @Com
 }
 
 @Composable
-private fun printerLabel(printer: Printer): String {
-    val type = stringResource(if (printer.type == PrinterType.BW) Res.string.print_printer_bw else Res.string.print_printer_color)
-    return "${printer.name} · $type"
+private fun printerLabel(printer: Printer, state: PrinterState? = null): String {
+    val type = stringResource(
+        when (printer.type) {
+            PrinterType.BW -> Res.string.print_printer_bw
+            PrinterType.COLOR -> Res.string.print_printer_color
+            PrinterType.UNKNOWN -> Res.string.print_printer_unknown_type
+        },
+    )
+    val status = when (state) {
+        PrinterState.IDLE -> stringResource(Res.string.print_printer_state_idle)
+        PrinterState.PRINTING -> stringResource(Res.string.print_printer_state_printing)
+        PrinterState.DISABLED -> stringResource(Res.string.print_printer_state_disabled)
+        PrinterState.UNKNOWN, null -> null
+    }
+    return listOfNotNull(printer.name, type, status).joinToString(" · ")
 }
 
 @Composable

@@ -84,13 +84,25 @@ class FakeSettings(username: PoolUsername? = null) : AppSettings {
     override suspend fun setPublicKey(line: String) { key.value = line }
     override suspend fun setOnboardingComplete(complete: Boolean) { onboarded.value = complete }
     var printDefaults = com.yahyafati.poolprint.core.model.PrintOptions()
-    override suspend fun getPrintDefaults() = printDefaults
+    override suspend fun getPrintDefaults(known: List<com.yahyafati.poolprint.core.model.Printer>) = printDefaults
     /** Goes through the same conversion as the DataStore, so only what is really persisted comes back. */
     override suspend fun setPrintDefaults(options: com.yahyafati.poolprint.core.model.PrintOptions) {
         printDefaults = com.yahyafati.poolprint.settings.StoredPrintOptions.fromJson(
             com.yahyafati.poolprint.settings.StoredPrintOptions.from(options).toJson(),
         )
     }
+}
+
+class FakeDiscoveryStore(var snapshot: com.yahyafati.poolprint.core.discovery.DiscoverySnapshot = com.yahyafati.poolprint.core.discovery.DiscoverySnapshot()) :
+    com.yahyafati.poolprint.settings.DiscoveryStore {
+    override suspend fun load() = snapshot
+    override suspend fun save(snapshot: com.yahyafati.poolprint.core.discovery.DiscoverySnapshot) { this.snapshot = snapshot }
+}
+
+class FakePresetStore : com.yahyafati.poolprint.settings.PresetStore {
+    private val state = MutableStateFlow<List<com.yahyafati.poolprint.settings.Preset>>(emptyList())
+    override val presets = state
+    override suspend fun save(presets: List<com.yahyafati.poolprint.settings.Preset>) { state.value = presets }
 }
 
 class FakeHostKeyStore : HostKeyStore {
@@ -138,12 +150,18 @@ class TestDeps(username: PoolUsername? = null) {
     val keyStore = FakeKeyStore()
     val generator = FakeKeyGenerator()
     val pageCounter = FakePageCounter()
+    val services = com.yahyafati.poolprint.service.PoolServices(settings, hostKeys, factory)
+    val discoveryStore = FakeDiscoveryStore()
+    var nowMillis = 1_000_000_000L
     val deps = com.yahyafati.poolprint.app.AppDependencies(
         settings = settings,
         hostKeys = hostKeys,
         keys = com.yahyafati.poolprint.keys.KeyManager(generator, keyStore, settings, "pool-print@test"),
-        services = com.yahyafati.poolprint.service.PoolServices(settings, hostKeys, factory),
+        services = services,
         pageCounter = pageCounter,
+        discovery = com.yahyafati.poolprint.service.DiscoveryService(services, discoveryStore) { nowMillis },
+        presets = com.yahyafati.poolprint.settings.PresetManager(FakePresetStore()),
+        queue = com.yahyafati.poolprint.service.QueueService(services, settings),
     )
 }
 

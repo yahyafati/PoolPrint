@@ -1,13 +1,15 @@
 # Architecture
 
-> Status: **M1 implemented**; later milestones are still design. Update this document whenever the
+> Status: **M1–M3 implemented**; M4 is still design. Update this document whenever the
 > implementation diverges.
 >
 > Where M1 differs from the sketches below: `service` (`PoolServices`, `ErrorCatalogue`) and `ui`
 > (`OnboardingModel`, `PrintModel`, `SettingsModel` plus the screens) exist as extra packages; the key
 > store, host-key store and settings are DataStore-backed in `commonMain`; `buildAppDependencies`
 > (`jvmCommonMain`) wires the real implementations for both platforms; `rememberPdfPicker` and
-> `rememberTextSharer` are `expect`/`actual` composables.
+> `rememberTextSharer` are `expect`/`actual` composables. M3 adds `DiscoveryService`, `QueueService`
+> and `PresetManager` to `AppDependencies`, `PoolServices.run` for non-`lpr` commands, and the Queue and
+> Presets screens (`QueueModel`, `PresetsModel`).
 
 ## Big picture
 
@@ -65,15 +67,16 @@ Root package: `com.yahyafati.poolprint`.
 |---|---|---|
 | `core.model` | common | `Printer`, `PrinterType` (BW/COLOR), `PrintOptions`, `PrintJob`, `Duplex`, `PagesPerSheet`, `Orientation`, `PaperSize`, `PageRanges` |
 | `core.validation` | common | Validators that turn raw UI input into typed values or a `ValidationError` |
-| `core.command` | common | `ShellQuote`, `RemoteCommand`, `LprCommandBuilder`, `LpqCommandBuilder`, `LprmCommandBuilder` |
+| `core.command` | common | `ShellQuote`, `RemoteCommand`, `LprCommandBuilder`, `LpstatCommandBuilder`, `LpoptionsCommandBuilder`, `LpqCommandBuilder`, `LprmCommandBuilder` |
 | `core.cost` | common | `CostEstimator`, `CostEstimate` (integer cents) |
-| `core.discovery` | common | `LpstatParser`, `LpoptionsParser`, `PrinterCapabilities`, `DiscoveredOption` |
-| `core.queue` | common | `LpqParser`, `QueueEntry` |
+| `core.discovery` | common | `LpstatParser`, `LpoptionsParser`, `DiscoveredPrinter`, `PrinterCapabilities`, `DiscoveredOption`, `DiscoverySnapshot`, `DiscoveryPolicy` |
+| `core.queue` | common | `LpqParser`, `QueueEntry`, `QueueSnapshot`, `OwnedJobId` |
 | `transport` | common (interface), jvmCommon (impl) | `SshClient`, `SshResult`, `SshError`, `ConnectionConfig`, `ByteSource` |
 | `keys` | common (interface), platform (impl) | `KeyManager`, `PrivateKeyStore`, `PublicKeyFormatter` |
 | `hostkeys` | common (interface), platform (impl) | `HostKeyStore`, `HostKeyVerdict` |
 | `pdf` | common (interface), platform (impl) | `PdfDocumentSource`, `PdfPageCounter` |
-| `settings` | common (interface), platform (impl) | Last-used options (`StoredPrintOptions`), presets, discovery cache, username |
+| `settings` | common (interface), platform (impl) | Last-used options (`StoredPrintOptions`), `Preset` / `PresetManager` / `PresetStore`, `DiscoveryStore`, username |
+| `service` | common | `PoolServices` (test, print, `run`), `DiscoveryService`, `QueueService`, `ErrorCatalogue` |
 | `ui.*` | common | Screens, view models, theme |
 
 ## Key interfaces (sketch)
@@ -141,7 +144,7 @@ sealed interface SshError {
 
 - **Test connection:** `exec("echo ok")` → expects stdout `ok`, exit 0.
 - **Discovery (M3):** `lpstat -p` → printer list; per printer `lpoptions -p <printer> -l` → options.
-  Results are cached per printer with a timestamp, and can be refreshed manually. If anything fails,
+  Results are cached per printer with a timestamp (24 h staleness, D-16), and can be refreshed manually. If anything fails,
   the app silently falls back to the hardcoded printers and standard options, with a small "Using
   defaults" hint.
 - **Queue (M3):** `lpq -P <printer>` → `LpqParser` → entries; the user's own entries get a Cancel action →

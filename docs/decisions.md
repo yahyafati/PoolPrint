@@ -244,13 +244,53 @@ page ranges either (ux.md). Saved values are re-validated on load; anything unkn
 validator uses the same policy to find the highest valid page (with output semantics and 2-up, an
 8-page document accepts ranges up to 4). `WARNING_THRESHOLD_CENTS` is 200 (warning above 2 €, not at exactly 2 €).
 
+## D-15 What a preset stores
+
+**Status:** Accepted (2026-10-25), please confirm.
+A preset stores the printer, duplex, pages per sheet, orientation, fit-to-page, paper size and the
+**discovered** options changed from their defaults. It does **not** store copies or page ranges: a
+preset applied to the next document must not silently print five copies (the same reasoning as D-13).
+ux.md said "all options but no page ranges"; this narrows it. The preset name is local display text
+(1 to 40 characters, no control characters, unique ignoring case, at most 30 presets) and never reaches a
+command. When a preset is applied, its discovered choices are re-validated against the **cached** options
+of its printer; a choice that is no longer in the cache is dropped. The print sheet shows a preset as
+selected only while the current options equal it exactly. "Last used" (D-13) does not remember discovered
+options either; use a preset for those.
+
+## D-16 Discovery: when it runs, what is cached
+
+**Status:** Accepted (2026-10-25).
+- Opening a model reads **only the cache**; the print screen calls `refreshDiscovery()` when it opens and
+  when the printer changes. Nothing else in the app starts a background fetch.
+- Cache entries older than 24 hours (or missing) are refreshed then; Settings → "Refresh printers and options"
+  forces it. Failure of any kind (unreachable, auth, non-zero exit, empty or localised output, an unknown host
+  key) is silent: the old cache or the hardcoded printers stay, and the sheet shows "Using default printer
+  settings." Discovery never pins a host key; trust is only asked in the print and queue flows.
+- Limits: at most 100 printers, 60 options per printer, 40 values per option. Data read back from storage is
+  run through the parser's rules again (`DiscoverySnapshot.sanitized`).
+- Discovered printers that aren't in the hardcoded table get `PrinterType.UNKNOWN` and are billed as
+  colour (10 ct) by the estimator.
+- Options with a single value get no control. Option labels are display text only.
+- `PoolServices.run(RemoteCommand)` is the one entry point for non-`lpr` commands; a `RemoteCommand` can only
+  come from a `core.command` builder.
+
+## D-17 Queue and cancelling
+
+**Status:** Accepted (2026-10-25).
+`QueueService` keeps the latest `lpq` result per printer in memory. `lprm` is only built for an `OwnedJobId`:
+digits only, present in that latest result, and owned by the pool username (string equality with the `lpq`
+owner column). The Cancel button only appears for own rows, asks for confirmation, and the queue is refreshed
+afterwards. Pull-to-refresh was not built; there is a Refresh button on both platforms. The `lpq` parser
+requires the `active`/`1st`/`2nd` rank column, an owner, a numeric job id and a trailing `N bytes`; other rows
+are skipped, and text with no header, status or rows is treated as unexpected output.
+
 ---
 
 ## Open questions
 
 Questions for the owner that block or shape later work:
 
-1. **Real command output** (pending: owner to capture when on campus or on VPN): the output of
+1. **Real command output** (pending, still needed in M3: owner to capture when on campus or on VPN): the output of
    `lpstat -p`, `lpoptions -p tfppr1 -l` (and tfppr2–4), and `lpq -P tfppr1` (with and without jobs)
    from the login server. They'll become test fixtures. Until then the fixtures are synthetic.
 2. **Pool username format:** confirm the allowed characters so the validator isn't too strict.
