@@ -11,7 +11,7 @@ kotlin {
     jvm()
     
     android {
-       namespace = "com.yahyafati.easyprinter.shared"
+       namespace = "com.yahyafati.poolprint.shared"
        compileSdk = libs.versions.android.compileSdk.get().toInt()
        minSdk = libs.versions.android.minSdk.get().toInt()
     

@@ -1,4 +1,4 @@
-package com.yahyafati.easyprinter
+package com.yahyafati.poolprint
 
 class Greeting {
     private val platform = getPlatform()

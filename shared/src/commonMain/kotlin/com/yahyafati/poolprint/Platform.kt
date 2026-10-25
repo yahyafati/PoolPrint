@@ -1,4 +1,4 @@
-package com.yahyafati.easyprinter
+package com.yahyafati.poolprint
 
 interface Platform {
     val name: String

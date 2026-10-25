@@ -1,9 +1,9 @@
-package com.yahyafati.easyprinter
+package com.yahyafati.poolprint
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class SharedLogicDesktopTest {
+class SharedLogicAndroidHostTest {
 
     @Test
     fun example() {

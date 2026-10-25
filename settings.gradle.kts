@@ -1,4 +1,4 @@
-rootProject.name = "EasyPrinter"
+rootProject.name = "PoolPrint"
 
 pluginManagement {
     repositories {

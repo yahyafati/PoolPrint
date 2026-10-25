@@ -1,4 +1,4 @@
-package com.yahyafati.easyprinter
+package com.yahyafati.poolprint
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
@@ -16,8 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import org.jetbrains.compose.resources.painterResource
 
-import easyprinter.shared.generated.resources.Res
-import easyprinter.shared.generated.resources.compose_multiplatform
+import poolprint.shared.generated.resources.Res
+import poolprint.shared.generated.resources.compose_multiplatform
 
 @Composable
 @Preview

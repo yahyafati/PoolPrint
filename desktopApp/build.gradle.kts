@@ -17,12 +17,17 @@ dependencies {
 
 compose.desktop {
     application {
-        mainClass = "com.yahyafati.easyprinter.MainKt"
+        mainClass = "com.yahyafati.poolprint.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "com.yahyafati.easyprinter"
+            packageName = "PoolPrint"
             packageVersion = "1.0.0"
+
+            macOS {
+                bundleID = "com.yahyafati.poolprint"
+                dockName = "Pool Print"
+            }
         }
     }
 }
