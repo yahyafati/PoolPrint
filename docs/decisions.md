@@ -13,7 +13,7 @@ When a decision changes, update the entry and add a dated note. Don't delete his
 |---|---|
 | A-01 | Kotlin Multiplatform + Compose Multiplatform; targets Android and macOS desktop (JVM). No web, no iOS for now. |
 | A-02 | No backend, cloud or telemetry. The device talks directly to `login.informatik.uni-freiburg.de` over SSH. |
-| A-03 | SSH key auth only (Ed25519, generated on the device). The pool password is never asked for or stored. |
+| A-03 | SSH key auth only (Ed25519, generated on the device). The pool password is never stored. *Amended 2026-10-25 (owner):* onboarding may ask for it once, optionally, to install the device key; see D-20. Everything else stays key-only. |
 | A-04 | The PDF is streamed into `lpr`'s stdin over an exec channel. No remote file copies, no filenames in commands. |
 | A-05 | Host key trust-on-first-use with a pinned fingerprint; a change blocks the connection. |
 | A-06 | Remote commands are built from typed, allow-listed values with per-token shell quoting. |
@@ -318,7 +318,8 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
 - **Add device** (Settings) is the shortcut for the manual `echo … >> authorized_keys` step: paste the new device's
   public key on a device that already works and the app appends it over its existing key login. Rejected
   alternatives: exporting/importing the private key (breaks non-exportable storage) and a helper using the pool
-  password (breaks "no password auth ever").
+  password (breaks "no password auth ever"). *Note 2026-10-25:* the owner later allowed the password once, in
+  onboarding, for the first-device step only (D-20). "Add a device" itself is unchanged and still key-only.
 - **How:** a fixed command, `umask 077; mkdir -p ~/.ssh; chmod 700 ~/.ssh; cat >> ~/.ssh/authorized_keys;
   chmod 600 ~/.ssh/authorized_keys`, with the key on stdin as a validated `PublicKeyLine` (see security.md). It
   works in sh and csh login shells (checked locally).
@@ -328,6 +329,31 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
 - **Not deduplicated:** adding the same key twice appends a second identical line (harmless). The first device
   still needs the manual step (or a pool computer).
 - **Not tested against the real server** (manual checklist in the roadmap).
+
+## D-20 One-time password key install in onboarding
+
+**Status:** Accepted (owner, 2026-10-25). Amends A-03; A-11 is unchanged.
+- **What:** the key step of onboarding has an optional "Add it for me with my pool password". The app logs in once
+  with the password and runs the D-19 `AuthorizeKeyCommand` with this device's public key on stdin, then tests the
+  key login as usual. This replaces the manual `echo … >> authorized_keys` step for the first device.
+- **Never stored:** the password is typed into a secure text field (no copy/cut), handed over as a `CharArray`,
+  and the field is cleared at once. The model keeps a copy only while the user is asked to trust the server, so the
+  install can resume after "Trust". Every copy is zeroed when the attempt ends, on Back and on Cancel. It is never
+  written to settings, the Keychain/Keystore, logs or the remote command. Compose's text field holds the typed
+  characters as a `String` until it is cleared, which can't be zeroed (same caveat as the PEM `String` in D-01).
+- **Narrow API:** `SshClient.installKeyWithPassword(password, key)` is a separate method that can run nothing but
+  `AuthorizeKeyCommand`; `exec` stays publickey-only, so printing can never fall back to the password.
+- **Host key first:** the usual TOFU check runs before authentication, so the password is never sent to an
+  unpinned or changed server key (tested: the test server sees no auth attempt at all).
+- **Methods:** `password` first. Only if the server doesn't offer that method, `keyboard-interactive`, answering
+  only a hidden prompt that looks like "Password:" (sshj `PasswordResponseProvider`). A rejected password is never
+  sent a second time. A server that asks for a second factor (an OTP prompt) fails with "the server didn't accept
+  the password", and the user falls back to the manual commands.
+- **Rejected alternatives:** storing the password for regular use (makes the app hold the university account
+  password, which unlocks much more than printing); a password option in Settings (the key step is the only place
+  that needs it).
+- **Not tested against the real server:** whether the pool server allows password or keyboard-interactive logins
+  over SSH, and what its prompt looks like (manual checklist in the roadmap).
 
 ---
 

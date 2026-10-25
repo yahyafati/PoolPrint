@@ -100,13 +100,16 @@ interface SshClient {
         onUploaded: (Long) -> Unit = {},          // bytes sent so far, for the progress bar
         timeoutMs: Long = DEFAULT_TIMEOUT_MS,
     ): SshResult
+
+    // One-time onboarding key install (D-20): password auth, runs only AuthorizeKeyCommand, zeroes the password.
+    suspend fun installKeyWithPassword(password: CharArray, key: PublicKeyLine): SshResult
 }
 
 data class SshResult(val exitCode: Int, val stdout: String, val stderr: String)
 
 sealed interface SshError {
     data object HostUnreachable : SshError         // DNS, no route, timeout on connect
-    data object AuthRejected : SshError            // key not in authorized_keys
+    data object AuthRejected : SshError            // key not in authorized_keys (or wrong password for the install)
     data class HostKeyUnknown(val keyType: String, val fingerprint: String) : SshError   // first connect: ask user
     data class HostKeyChanged(val expected: String, val actual: String) : SshError  // loud warning
     data object Timeout : SshError

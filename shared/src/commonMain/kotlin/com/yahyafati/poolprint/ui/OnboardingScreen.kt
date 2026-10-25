@@ -6,11 +6,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -62,12 +65,17 @@ fun OnboardingScreen(model: OnboardingModel, onFinished: () -> Unit) {
                 Text(stringResource(Res.string.onboarding_key_title), style = MaterialTheme.typography.headlineSmall)
                 Text(stringResource(Res.string.onboarding_key_body))
                 state.publicKey?.let { KeyInstructions(it) }
+                OutlinedButton(onClick = model::usePassword, enabled = state.publicKey != null) {
+                    Text(stringResource(Res.string.onboarding_key_use_password))
+                }
                 NavRow(onBack = model::back) {
                     Button(onClick = model::continueToConnect, enabled = state.publicKey != null) {
                         Text(stringResource(Res.string.onboarding_key_added))
                     }
                 }
             }
+
+            OnboardingStep.PasswordSetup -> PasswordSetupStep(model, state)
 
             OnboardingStep.Connect, OnboardingStep.Done -> ConnectStep(model, state, onFinished)
         }
@@ -99,6 +107,47 @@ fun KeyInstructions(publicKey: String) {
         }
         SelectionContainer { Text(command, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall) }
         OutlinedButton(onClick = { copy(command) }) { Text(stringResource(Res.string.onboarding_key_copy_command)) }
+    }
+}
+
+/**
+ * The one-time password key install (D-20). The secure field can't be copied from; its text is handed to the model
+ * as a CharArray and cleared from the field straight away.
+ */
+@Composable
+private fun PasswordSetupStep(model: OnboardingModel, state: OnboardingState) {
+    val password = rememberTextFieldState()
+    val busy = state.install == ConnectState.Running || state.install is ConnectState.AskTrust
+    fun submit() {
+        val text = password.text
+        if (busy || text.isEmpty()) return
+        val chars = CharArray(text.length) { text[it] }
+        password.clearText()
+        model.installWithPassword(chars)
+    }
+    Text(stringResource(Res.string.onboarding_password_title), style = MaterialTheme.typography.headlineSmall)
+    Text(stringResource(Res.string.onboarding_password_body))
+    Text(stringResource(Res.string.onboarding_connect_vpn_note), style = MaterialTheme.typography.bodyMedium)
+    OutlinedSecureTextField(
+        state = password,
+        label = { Text(stringResource(Res.string.onboarding_password_label)) },
+        enabled = !busy,
+        onKeyboardAction = { submit() },
+        modifier = Modifier.fillMaxWidth(),
+    )
+    when (val install = state.install) {
+        ConnectState.Running -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CircularProgressIndicator(Modifier.padding(end = 4.dp))
+            Text(stringResource(Res.string.onboarding_password_running))
+        }
+        is ConnectState.AskTrust -> TrustHostKeyCard(install.key, onTrust = model::trustHostKey, onDecline = model::declineHostKey)
+        is ConnectState.Failed -> FailureCard(install.failure, onRetry = null)
+        else -> Unit
+    }
+    NavRow(onBack = model::back) {
+        Button(onClick = { submit() }, enabled = !busy && password.text.isNotEmpty()) {
+            Text(stringResource(Res.string.onboarding_password_submit))
+        }
     }
 }
 

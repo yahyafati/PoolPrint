@@ -32,6 +32,7 @@ private fun message(failure: UserFailure): String = when (failure.kind) {
     FailureKind.NotConfigured -> stringResource(Res.string.error_not_configured)
     FailureKind.HostUnreachable -> stringResource(Res.string.error_host_unreachable)
     FailureKind.AuthRejected -> stringResource(Res.string.error_auth_rejected)
+    FailureKind.PasswordRejected -> stringResource(Res.string.error_password_rejected)
     FailureKind.HostKeyChanged -> stringResource(Res.string.error_host_key_changed_body)
     FailureKind.Timeout -> stringResource(Res.string.error_timeout)
     FailureKind.UnknownPrinter -> stringResource(Res.string.error_unknown_printer, failure.printerName.orEmpty())

@@ -7,7 +7,8 @@ Rules for anyone working on this repo: human contributors and AI coding agents. 
 1. **Milestone by milestone.** Follow [roadmap.md](roadmap.md). Don't start the next milestone until
    the current one has been reported and the owner has acknowledged it.
 2. **Respect the hard constraints** in [Project Overview.md](Project%20Overview.md#non-goals-and-hard-constraints):
-   no backend, no password auth, no telemetry, no remote file copies, no filenames in commands.
+   no backend, no password auth (except the one-time key install, D-20), no telemetry, no remote file copies,
+   no filenames in commands.
 3. **Security rules are requirements:** see [security.md](security.md). Any change to command
    construction needs injection tests.
 4. **Add dependencies as needed, but register them.** Every new library goes in the

@@ -47,7 +47,8 @@ readable result.
 - Unit tests pass on `:shared:jvmTest` and `:shared:testAndroidHostTest`.
 - Every user-controlled field reachable in M1 has injection tests.
 - Flow tests with `FakeSshClient` cover success, `AuthRejected`, `HostKeyChanged`, and a non-zero exit with stderr.
-- No password prompt anywhere; password auth is disabled in the SSH config.
+- No password prompt anywhere; password auth is disabled in the SSH config. *(Since D-20: except the optional
+  one-time key install in onboarding; regular commands stay publickey-only.)*
 - The app builds and launches on an Android emulator or device and on macOS. *(Launched on the API 29
   emulator through onboarding; started on macOS without errors.)*
 
@@ -188,9 +189,19 @@ sets as presets, and see and cancel your own jobs.
 - 🔶 **Add another device** (D-19): Settings → Add a device… appends a pasted public key to `authorized_keys`
   (`AuthorizeKeyCommand`, `PublicKeyLine`). Unit-tested with `FakeSshClient` and injection payloads; the command was
   run against sh and csh locally. Not run against the real server.
+- 🔶 **One-time password key install** (D-20): onboarding → "Add it for me with my pool password" installs the
+  device key with `SshClient.installKeyWithPassword`, then tests the key login. Tested with `FakeSshClient` and the
+  in-process server (password and keyboard-interactive, host key before auth, password zeroed, sent once). Not run
+  against the real server.
 
 ### Manual test checklist
 
+- [ ] Password key install: fresh install → key step → "Add it for me with my pool password" → trust the server
+      (check the fingerprint) → type the password → Add key → Test connection ✓ with the key. `~/.ssh/authorized_keys`
+      has one new line, `ls -ld ~/.ssh` is `drwx------`. Note whether the server used `password` or
+      `keyboard-interactive` and whether it asked for anything besides the password.
+- [ ] Password key install with a wrong password: "didn't accept the password", the field is empty, and nothing was
+      added. After the app restarts, nothing asks for the password again.
 - [ ] Add a device: on a second device (e.g. the phone) copy its key from onboarding, paste it in Settings → Add a
       device… on the Mac → "Added". On the phone, Test connection succeeds. Check that `~/.ssh/authorized_keys`
       on the server has one new line and that `ls -ld ~/.ssh` is `drwx------`.

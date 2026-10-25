@@ -10,7 +10,7 @@ makes it security-sensitive even though it's a small app. The rules here are **r
 | SSH private key | Stolen from device storage or backups | Encrypted at rest with a platform-held key (Android Keystore / macOS Keychain); excluded from Android backups; never logged or exported in plaintext |
 | Pool account | Arbitrary command execution through crafted input (shell injection) | Typed values only, allow-list validation, per-token shell quoting, injection tests on every field |
 | Pool account | Man-in-the-middle impersonating the login server | Host key pinned on first use (TOFU); a changed key **blocks** the connection |
-| Pool password | Phishing or storage in the app | The app never asks for or stores it; password auth is disabled in the client |
+| Pool password | Phishing, storage in the app, or reuse for other commands | Never stored; asked for at most once, optionally, in onboarding to install the key (D-20); sent only after the host key is verified; that login can run only the fixed key-install command; regular commands are publickey-only |
 | Document privacy | Filename or content leaks | No filenames in remote commands; no copies on the remote side; temp copies on the device are deleted after use |
 | User privacy | Tracking | No telemetry, analytics or crash reporting; no network traffic except to the pool login server |
 | Budget | Accidental huge jobs | `MAX_COPIES` cap, cost estimate on the button, warning above a threshold |
@@ -19,8 +19,9 @@ Out of scope: a fully compromised (rooted or jailbroken) device, and a compromis
 
 ## SSH client configuration
 
-- **Auth methods:** `publickey` only. Turn off `password`, `keyboard-interactive` and `gssapi-with-mic`
-  in the library configuration. Don't just skip them.
+- **Auth methods:** `exec` (every regular command) offers `publickey` only: `password`, `keyboard-interactive` and
+  `gssapi-with-mic` are never attempted, even after a rejection. The only other path is the one-time key install
+  below, a separate client method.
 - **No forwarding:** no agent forwarding, port forwarding or X11.
 - **Host-key algorithm preference** is fixed and explicit, `ssh-ed25519` first, so the negotiated key
   type is stable and the pin doesn't flap between key types.
@@ -107,6 +108,21 @@ shell never sees anything the user typed. The key itself is a `PublicKeyLine`, r
 Options such as `command="…"`, other key types, several lines or any other character are rejected, never sanitised.
 Because a key can be authorized this way, only an already-authenticated device can add one; the server's own
 `authorized_keys` remains the authority and the user can remove any line there.
+
+### One-time password key install (D-20)
+
+Optional, in onboarding only. `SshClient.installKeyWithPassword` logs in with the pool password and runs exactly the
+`AuthorizeKeyCommand` above with the device's own `PublicKeyLine` on stdin; it takes no command argument.
+- The host key is checked (TOFU) **before** authentication, as for every connection: the password is never sent to
+  an unpinned or changed key.
+- `password` is tried first; `keyboard-interactive` only if the server doesn't offer `password`, and then only a
+  hidden "Password:"-style prompt is answered. A rejected password is not sent again.
+- The password is never stored, logged or put into a command. It travels as a `CharArray` that is zeroed when the
+  attempt ends (including copies handed to sshj); the UI field is cleared on submit.
+- Tests (`SshjPasswordInstallTest`, `PasswordInstallTest`): key appended and key login works afterwards; password
+  array zeroed on success and failure; a wrong password is sent once; keyboard-interactive fallback; no auth
+  attempt at all for an unpinned or changed host key; `exec` still never tries the password on a server that
+  would accept it; the password never appears in the command or stdin.
 
 ### Required injection tests
 

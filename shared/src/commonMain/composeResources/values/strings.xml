@@ -21,7 +21,7 @@
 
     <!-- Onboarding -->
     <string name="onboarding_welcome_title">Welcome to Pool Print</string>
-    <string name="onboarding_welcome_body">Print PDFs on the TF pool printers from your phone or Mac. Your pool password is never needed or stored.</string>
+    <string name="onboarding_welcome_body">Print PDFs on the TF pool printers from your phone or Mac. Pool Print never stores your pool password.</string>
     <string name="onboarding_start">Get started</string>
     <string name="onboarding_username_title">Your pool username</string>
     <string name="onboarding_username_label">Pool username</string>
@@ -30,6 +30,12 @@
     <string name="onboarding_key_public_label">Public key</string>
     <string name="onboarding_key_copy_command">Copy command</string>
     <string name="onboarding_key_added">I added the key</string>
+    <string name="onboarding_key_use_password">Add it for me with my pool password</string>
+    <string name="onboarding_password_title">Add the key with your password</string>
+    <string name="onboarding_password_body">Pool Print logs in once with your pool password, adds this device\'s public key to ~/.ssh/authorized_keys and then forgets the password. It is not saved, and after this the app only uses the key.</string>
+    <string name="onboarding_password_label">Pool password</string>
+    <string name="onboarding_password_submit">Add key</string>
+    <string name="onboarding_password_running">Adding the key…</string>
     <string name="onboarding_connect_title">Test the connection</string>
     <string name="onboarding_connect_vpn_note">Off campus you need to be connected to the university VPN.</string>
     <string name="onboarding_connect_test">Test connection</string>
@@ -183,6 +189,7 @@
     <!-- Errors (docs/ux.md catalogue) -->
     <string name="error_not_configured">Pool Print isn\'t set up yet. Finish the setup first.</string>
     <string name="error_host_unreachable">Can\'t reach the pool server. Off campus? Connect to the university VPN first. Otherwise check your internet connection.</string>
+    <string name="error_password_rejected">The server didn\'t accept the password. Check your username and password. If the pool asks for more than a password (for example a one-time code), add the key with the commands instead.</string>
     <string name="error_auth_rejected">Key not authorized. Did you add the public key to ~/.ssh/authorized_keys on your pool account?</string>
     <string name="error_host_key_changed_title">Warning: the server\'s identity has changed</string>
     <string name="error_host_key_changed_body">This could be an attack. Don\'t continue unless the pool admins announced a key change. Nothing was sent.</string>

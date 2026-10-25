@@ -17,7 +17,7 @@ Android and macOS. Desktop gets a wider layout, not a different flow.
 
 ### Onboarding (first run)
 
-1. **Welcome:** one sentence on what the app does, plus "Your password is never needed or stored."
+1. **Welcome:** one sentence on what the app does, plus "Pool Print never stores your pool password."
 2. **Pool username:** a text field, validated.
 3. **Your key:** the app generates an Ed25519 key and shows the public key (monospace, selectable) with
    **Copy**. On macOS there's also **Use an existing key from ~/.ssh…**. Instructions:
@@ -28,13 +28,20 @@ Android and macOS. Desktop gets a wider layout, not a different flow.
    > chmod 600 ~/.ssh/authorized_keys
    > ```
    Offer a **Share** action too, so the user can send the key to themselves.
+   Below that, **Add it for me with my pool password** opens step 3a instead.
+
+   3a. **Add the key with your password (optional, D-20):** explains that the app logs in once, adds this device's
+   key to `~/.ssh/authorized_keys` and forgets the password. One secure password field (hidden, no copy) and
+   **Add key**, plus the VPN note. On the first connection the trust card from step 4 appears first; the password is
+   only sent after **Trust this server**. On success it moves to step 4 and runs Test connection with the key. A
+   wrong password shows the "didn't accept the password" error and the field is empty again.
 4. **Test connection (with host-key verification):** runs `echo ok`. On the first connection it stops
    before authenticating and shows the host-key fingerprint; the user taps **Trust this server** (see
    [security.md](security.md#host-key-verification-tofu)) and the test runs again. It ends with ✓ or a
    catalogue error, and on success **Finish setup**.
    A short note above the button: "Off campus you need to be connected to the university VPN."
 
-After onboarding, nothing asks for a password or passphrase again (A-11).
+After onboarding, nothing asks for a password or passphrase again (A-11). The password in 3a is never stored.
 
 ### Home
 
@@ -97,6 +104,7 @@ Maps `SshError` and remote failures to user messages. Exact strings live in Comp
 | Condition | Message | Action |
 |---|---|---|
 | `HostUnreachable` | "Can't reach the pool server. **Off campus? Connect to the university VPN first.** Otherwise check your internet connection." | Retry |
+| `AuthRejected` during the password key install (3a) | "The server didn't accept the password. Check your username and password. If the pool asks for more than a password (for example a one-time code), add the key with the commands instead." | n/a (type it again) |
 | `AuthRejected` | "Key not authorized. Did you add the public key to `~/.ssh/authorized_keys` on your pool account?" | Show key / Copy |
 | `HostKeyUnknown` | "First connection to this server. Check the fingerprint before trusting it." | Show fingerprint, Trust / Cancel |
 | `HostKeyChanged` | "**Warning: the server's identity has changed.** This could be an attack. Don't continue unless the pool admins announced a key change." | Details only (no continue) |

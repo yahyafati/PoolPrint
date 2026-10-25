@@ -7,6 +7,9 @@ enum class FailureKind {
     NotConfigured,
     HostUnreachable,
     AuthRejected,
+
+    /** The one-time key install (D-20): the server refused the pool password. */
+    PasswordRejected,
     HostKeyChanged,
     Timeout,
     UnknownPrinter,
