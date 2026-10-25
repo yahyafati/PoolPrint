@@ -55,6 +55,26 @@
     <string name="print_copies_less">Fewer copies</string>
     <string name="print_copies_more">More copies</string>
     <string name="print_button">Print</string>
+    <string name="print_button_cost">Print · %1$s · %2$s</string>
+    <string name="print_button_unknown">Print · ? pages</string>
+    <string name="print_pages_one">1 page</string>
+    <string name="print_pages_many">%1$d pages</string>
+    <string name="print_pages_unknown">counting pages…</string>
+    <string name="print_cost_warning">This job costs about %1$s. Check the copies and options before you print.</string>
+    <string name="print_duplex">Duplex</string>
+    <string name="print_duplex_off">Off</string>
+    <string name="print_duplex_long">Long edge</string>
+    <string name="print_duplex_short">Short edge</string>
+    <string name="print_advanced">Advanced options</string>
+    <string name="print_page_ranges">Page ranges</string>
+    <string name="print_page_ranges_placeholder">All pages, or e.g. 1-4,7</string>
+    <string name="print_page_ranges_hint_layout">With %1$d pages per sheet, these numbers count printed sides, not document pages.</string>
+    <string name="print_pages_per_sheet">Pages per sheet</string>
+    <string name="print_orientation">Orientation</string>
+    <string name="print_orientation_portrait">Portrait</string>
+    <string name="print_orientation_landscape">Landscape</string>
+    <string name="print_fit_to_page">Fit to page</string>
+    <string name="print_paper_size">Paper size</string>
     <string name="print_uploading">Sending to the printer…</string>
     <string name="print_uploading_progress">Sending… %1$s of %2$s</string>
     <string name="print_sent">Sent to %1$s. Collect your printout at the printer.</string>
@@ -80,6 +100,10 @@
     <string name="settings_about">Pool Print has no backend and no telemetry. It only talks to the pool login server.</string>
 
     <!-- Validation -->
+    <string name="validation_page_ranges_invalid">Page ranges look like 1-4,7.</string>
+    <string name="validation_page_ranges_reversed">A range has to go up, like 3-5.</string>
+    <string name="validation_page_ranges_too_long">That is too long.</string>
+    <string name="validation_page_ranges_beyond">Pages go up to %1$d.</string>
     <string name="validation_username_empty">Enter your pool username.</string>
     <string name="validation_username_invalid">Pool usernames use lowercase letters, digits, dot, dash and underscore.</string>
 

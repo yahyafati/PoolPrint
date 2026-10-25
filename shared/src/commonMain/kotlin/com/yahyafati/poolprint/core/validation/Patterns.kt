@@ -8,5 +8,8 @@ internal object Patterns {
     /** Final check on every token that reaches the shell, before quoting. */
     val SafeToken = Regex("^[A-Za-z0-9_.,=#:-]+$")
 
+    /** One page range: `7` or `2-9`. Pages start at 1 and have at most five digits. */
+    val PageRange = Regex("^([1-9][0-9]{0,4})(?:-([1-9][0-9]{0,4}))?$")
+
     val PoolUsername = Regex("^[a-z0-9_][a-z0-9_.-]{0,31}$")
 }

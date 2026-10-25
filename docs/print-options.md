@@ -8,8 +8,8 @@ This document is the spec for `core.command`, `core.validation`, `core.discovery
 | UI control | Model | Values | `lpr` argument(s) | Default |
 |---|---|---|---|---|
 | Printer | `Printer` | known printer names | `-P <name>` | last used, else `tfppr1` |
-| Copies | `Int` | 1 … `MAX_COPIES` (20) | `-# <n>` (only added when n > 1) | 1 |
-| Page ranges | `PageRanges?` | see grammar below | `-o page-ranges=<canonical>` (only added when set) | all pages |
+| Copies | `Int` | 1 … `MAX_COPIES` (20) | `-# <n>` (only added when n > 1) | 1 (never remembered) |
+| Page ranges | `PageRanges?` | see grammar below | `-o page-ranges=<canonical>` (only added when set) | all pages (never remembered) |
 | Duplex | `Duplex` | `OFF`, `LONG_EDGE`, `SHORT_EDGE` | `-o sides=one-sided` / `two-sided-long-edge` / `two-sided-short-edge` | `OFF` |
 | Pages per sheet | `PagesPerSheet` | 1, 2, 4 | `-o number-up=<n>` (only added when n > 1) | 1 |
 | Orientation | `Orientation` | `PORTRAIT`, `LANDSCAPE` | `-o landscape` (only added for landscape) | `PORTRAIT` |
@@ -57,8 +57,8 @@ page   := [1-9][0-9]{0,4}
 
 - Spaces are stripped before parsing (`1 - 4, 7` → `1-4,7`). Any other character is an error.
 - For `a-b`, `a ≤ b` is required.
-- Overlapping or unordered ranges are **normalised**: sorted and merged into a canonical form
-  (`7,1-4,3-5` → `1-5,7`). The canonical form is what gets sent and what the cost estimate uses.
+- Overlapping, adjacent or unordered ranges are **normalised**: sorted and merged into a canonical form
+  (`7,1-4,3-5` → `1-5,7`, `1-2,3-4` → `1-4`). The canonical form is what gets sent and what the cost estimate uses.
 - Open-ended ranges (`5-`) are not supported in v1.
 - Maximum input length is 200 characters.
 
@@ -67,7 +67,10 @@ page   := [1-9][0-9]{0,4}
 The CUPS documentation says `page-ranges` refers to the **output pages**, i.e. after `number-up`
 is applied, not to the document's original pages. Newer cups-filters versions may behave differently.
 
-- The estimator takes a `PageRangeSemantics` setting (`OUTPUT_PAGES` default, `INPUT_PAGES`).
+- The estimator takes a `PageRangeSemantics` setting (`OUTPUT_PAGES` default, `INPUT_PAGES`), together
+  with the `BillingUnit`, in a `CostPolicy`. The validator uses the same policy for the highest page it
+  accepts: with `OUTPUT_PAGES` that is `ceil(N / up)`, so ranges that are too high for the chosen layout are
+  rejected inline ("Pages go up to 4.") and Print is disabled.
 - The UI hint for page ranges says what the ranges refer to when pages-per-sheet > 1.
 - **Has to be checked manually on the real pool printers.** See [roadmap.md](roadmap.md) and
   [decisions.md](decisions.md#d-07-page-range-semantics-with-number-up).
@@ -98,7 +101,9 @@ costCents    = billable * rate(printer.type)
 - The Print button label uses `billable` as "pages": `Print · 12 pages · 0.60 €`.
   Format: two decimals, `€` suffix, singular `1 page`.
 - When the page count isn't known (e.g. a corrupt PDF), show `Print · ? pages` and still allow printing.
-- Show a warning when `costCents` exceeds a threshold (e.g. > 2 €, a third of the monthly budget).
+- Show a warning when `costCents` exceeds `WARNING_THRESHOLD_CENTS` (200: more than 2 €, a third of the
+  monthly budget). It is a hint under the options, not a block.
+- While the pages are still being counted the button just says `Print`.
 
 Required test cases include: no ranges; ranges past the end of the document; `up` = 2 or 4 with odd page
 counts; duplex with odd impressions; copies > 1; both semantics; both billing units; b/w vs colour.

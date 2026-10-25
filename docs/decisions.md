@@ -114,10 +114,15 @@ Implementation notes (M1):
 
 ## D-02 PDF page counting
 
-**Status:** Proposed.
-- Android: `android.graphics.pdf.PdfRenderer` (platform API, no dependency).
-- Desktop: Apache PDFBox (counts as the allowed "PDF page-count library").
-- Both sit behind `PdfPageCounter` in `commonMain`.
+**Status:** Accepted and implemented (2026-10-25).
+- Android: `android.graphics.pdf.PdfRenderer` (platform API, no dependency). It needs a seekable file
+  descriptor: a content URI usually provides one; otherwise the PDF is copied to the cache directory and
+  the copy is deleted right after counting.
+- Desktop: Apache PDFBox 3.0.8 (`Loader.loadPDF`, a picked file is read in place).
+- Both sit behind `PdfPageCounter` in `commonMain`. A file that can't be read (corrupt, encrypted, not a
+  PDF) gives `null`: the button says "Print · ? pages" and printing stays possible.
+- Not verified: PDFBox inside the packaged `.dmg` (the jlink runtime may need extra modules; M4), and
+  `PdfRenderer` on a real device.
 
 ## D-03 Persistence for settings, presets and caches
 
@@ -217,9 +222,27 @@ key blob whose Keystore key is gone. If the Keystore key is lost anyway, loading
   `~/.ssh` path"); it stays with the M4 checklist.
 - Only `content://` URIs are accepted from the Android share intent, never `file://`, so another app
   can't make Pool Print read its private files.
-- No page counting or cost in M1 (M2): the Print button just says "Print".
+- No page counting or cost in M1 (done in M2): the Print button just said "Print".
 - Android handles configuration changes itself (`configChanges` in the manifest), so the picked
   document survives rotation; process death drops it.
+
+---
+
+## D-13 What "last used" remembers
+
+**Status:** Accepted (2026-10-25), please confirm.
+M2 remembers the printer, duplex, pages per sheet, orientation, fit-to-page and paper size, saved when
+Print is tapped. **Copies and page ranges are not remembered**: they belong to one job, and a leftover
+"5 copies" or "pages 3-9" on the next document would waste budget quietly. Presets (M3) do not store
+page ranges either (ux.md). Saved values are re-validated on load; anything unknown falls back to the default.
+
+## D-14 Cost-estimator defaults
+
+**Status:** Accepted (2026-10-25), pending D-06 and D-07.
+`CostPolicy()` defaults to `PER_SIDE` and `OUTPUT_PAGES` (the documented defaults) and is passed into
+`PrintModel`; flipping a default is a one-line change plus the tests that name it. The page-range
+validator uses the same policy to find the highest valid page (with output semantics and 2-up, an
+8-page document accepts ranges up to 4). `WARNING_THRESHOLD_CENTS` is 200 (warning above 2 €, not at exactly 2 €).
 
 ---
 
@@ -259,6 +282,6 @@ All non-template dependencies, planned or added. Update this table whenever `lib
 | `kotlinx-serialization-json` 1.12.0 (+ plugin) | `commonMain` | Structured persisted values (host-key pins) | Added (M1) |
 | `androidx.activity:activity-compose` (already in the template catalog) | `androidMain` | `OpenDocument` picker | Added (M1) |
 | JNA 5.19.1 | `jvmMain` | macOS Keychain access | Added (M1) |
-| Apache PDFBox | `jvmMain` | Page counting on desktop | Planned (M2) |
+| Apache PDFBox `pdfbox` 3.0.8 | `jvmMain` | Page counting on desktop (D-02) | Added (M2) |
 | Apache MINA SSHD `sshd-core` 2.20.0 (+ `bcpkix`, `slf4j-simple`) | `jvmTest` only | In-process SSH server for testing the real `SshClient`; also run standalone for the emulator | Added (M1) |
 | Robolectric | Android host tests | Keystore and PdfRenderer tests, if needed | Optional |

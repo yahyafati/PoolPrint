@@ -5,10 +5,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.yahyafati.poolprint.app.AppDependencies
+import com.yahyafati.poolprint.core.model.PrintOptions
 import com.yahyafati.poolprint.pdf.PdfDocumentSource
 import com.yahyafati.poolprint.ui.HomeScreen
 import com.yahyafati.poolprint.ui.OnboardingModel
@@ -54,8 +56,12 @@ fun App(
             }
             document != null -> {
                 val doc = document!!
-                val model = remember(doc) { PrintModel(deps, doc, scope) }
-                PrintScreen(model, onClose = { document = null }, onShowKey = { showSettings = true })
+                // The remembered printer and options load first (a quick local read), so the sheet opens filled in.
+                val remembered by produceState<PrintOptions?>(null, doc) { value = deps.settings.getPrintDefaults() }
+                remembered?.let { initial ->
+                    val model = remember(doc) { PrintModel(deps, doc, scope, initial) }
+                    PrintScreen(model, onClose = { document = null }, onShowKey = { showSettings = true })
+                }
             }
             else -> HomeScreen(deps, onDocument = { document = it }, onSettings = { showSettings = true })
         }

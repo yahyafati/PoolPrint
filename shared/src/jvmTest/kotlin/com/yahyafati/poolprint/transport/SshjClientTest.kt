@@ -1,9 +1,15 @@
 package com.yahyafati.poolprint.transport
 
 import com.yahyafati.poolprint.core.command.RemoteCommand
+import com.yahyafati.poolprint.core.model.Duplex
+import com.yahyafati.poolprint.core.model.Orientation
+import com.yahyafati.poolprint.core.model.PagesPerSheet
+import com.yahyafati.poolprint.core.model.PaperSize
 import com.yahyafati.poolprint.core.model.PrintJob
 import com.yahyafati.poolprint.core.model.PrintOptions
 import com.yahyafati.poolprint.core.model.Printers
+import com.yahyafati.poolprint.core.validation.Validators
+import com.yahyafati.poolprint.core.validation.valueOrNull
 import com.yahyafati.poolprint.fakes.FakeHostKeyStore
 import com.yahyafati.poolprint.fakes.FakeKeyStore
 import com.yahyafati.poolprint.fakes.FakeSettings
@@ -196,7 +202,7 @@ class SshjClientTest {
             val job = PrintJob(PrintOptions(Printers.all[0], copies = 2), "ignored name; id.pdf")
             val result = services.print(job, ByteArraySource(pdf)) {}
             assertEquals(PrintResult.Sent("tfppr1", "tfppr1-7"), result)
-            assertEquals(listOf("-P", "tfppr1", "-#", "2"), lpr.args())
+            assertEquals(listOf("-P", "tfppr1", "-#", "2", "-o", "sides=one-sided", "-o", "media=A4"), lpr.args())
             assertTrue(pdf.contentEquals(lpr.input()))
         }
     }
@@ -209,6 +215,28 @@ class SshjClientTest {
             val failure = (services(server).print(PrintJob(PrintOptions(), "x.pdf"), ByteArraySource(ByteArray(10))) {} as PrintResult.Failed).failure
             assertEquals(FailureKind.UnknownPrinter, failure.kind)
             assertEquals(1, failure.exitCode)
+        }
+    }
+
+    @Test
+    fun `every option arrives as separate arguments through a real shell`() = runBlocking {
+        val lpr = FakeLpr()
+        TestSshServer(pathPrefix = lpr.dir).start().use { server ->
+            pin(server)
+            val options = PrintOptions(
+                printer = Printers.all[3], copies = 3, pageRanges = Validators.pageRanges("7, 1-4, 3-5").valueOrNull(),
+                duplex = Duplex.SHORT_EDGE, pagesPerSheet = PagesPerSheet.FOUR, orientation = Orientation.LANDSCAPE,
+                fitToPage = true, paperSize = PaperSize.LETTER,
+            )
+            val result = services(server).print(PrintJob(options, "x; rm -rf ~.pdf"), ByteArraySource(ByteArray(10))) {}
+            assertIs<PrintResult.Sent>(result)
+            assertEquals(
+                listOf(
+                    "-P", "tfppr4", "-#", "3", "-o", "sides=two-sided-short-edge", "-o", "number-up=4", "-o", "page-ranges=1-5,7",
+                    "-o", "landscape", "-o", "fit-to-page", "-o", "media=Letter",
+                ),
+                lpr.args(),
+            )
         }
     }
 }

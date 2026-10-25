@@ -6,6 +6,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import com.yahyafati.poolprint.keys.AndroidKeystorePrivateKeyStore
+import com.yahyafati.poolprint.pdf.AndroidPdfPageCounter
 import java.io.File
 import okio.Path.Companion.toPath
 
@@ -20,5 +21,5 @@ private fun settingsDataStore(context: Context): DataStore<Preferences> =
 
 fun createAndroidAppDependencies(context: Context): AppDependencies {
     val app = context.applicationContext
-    return buildAppDependencies(settingsDataStore(app), AndroidKeystorePrivateKeyStore(app), Build.MODEL.orEmpty())
+    return buildAppDependencies(settingsDataStore(app), AndroidKeystorePrivateKeyStore(app), Build.MODEL.orEmpty(), AndroidPdfPageCounter(app.cacheDir))
 }

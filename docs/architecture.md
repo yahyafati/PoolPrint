@@ -73,7 +73,7 @@ Root package: `com.yahyafati.poolprint`.
 | `keys` | common (interface), platform (impl) | `KeyManager`, `PrivateKeyStore`, `PublicKeyFormatter` |
 | `hostkeys` | common (interface), platform (impl) | `HostKeyStore`, `HostKeyVerdict` |
 | `pdf` | common (interface), platform (impl) | `PdfDocumentSource`, `PdfPageCounter` |
-| `settings` | common (interface), platform (impl) | Last-used options, presets, discovery cache, username |
+| `settings` | common (interface), platform (impl) | Last-used options (`StoredPrintOptions`), presets, discovery cache, username |
 | `ui.*` | common | Screens, view models, theme |
 
 ## Key interfaces (sketch)
@@ -124,11 +124,11 @@ sealed interface SshError {
 ## Main data flow: printing
 
 1. **Input.** Platform glue turns a share intent, picker result, drop or Open-With event into a
-   `PdfDocumentSource`: display name, size, a way to open a `ByteSource`, and the page count. The display
+   `PdfDocumentSource`: display name, size, a way to open a `ByteSource`. The page count comes from `PdfPageCounter` (counted on the device, off the UI thread). The display
    name is shown in the UI only. It never reaches the remote command.
 2. **Options.** The UI pre-fills from the last-used options or the selected preset. Every change goes
    through `core.validation`.
-3. **Estimate.** `CostEstimator(pageCount, options, printer.type)` → `CostEstimate`, shown on the Print button.
+3. **Estimate.** `CostEstimator.estimate(options, pageCount, policy)` → `CostEstimate`, shown on the Print button.
 4. **Build.** `LprCommandBuilder.build(job, capabilities)` → `RemoteCommand`, or a validation error.
 5. **Execute.** `SshClient.exec(command, stdin = document.openByteSource())` opens an exec channel and
    streams the bytes into stdin. When the bytes are done it closes stdin (EOF), then waits for the

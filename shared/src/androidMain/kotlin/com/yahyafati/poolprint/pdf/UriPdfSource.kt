@@ -2,6 +2,7 @@ package com.yahyafati.poolprint.pdf
 
 import android.content.ContentResolver
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import com.yahyafati.poolprint.transport.ByteSource
 import java.io.InputStream
@@ -19,6 +20,9 @@ class UriPdfSource(private val resolver: ContentResolver, private val uri: Uri) 
 
     override val displayName: String = columns.first ?: uri.lastPathSegment ?: "document.pdf"
     override val sizeBytes: Long? = columns.second
+
+    /** A seekable descriptor for `PdfRenderer`, or null when the provider can't give one. The caller closes it. */
+    fun openFileDescriptor(): ParcelFileDescriptor? = runCatching { resolver.openFileDescriptor(uri, "r") }.getOrNull()
 
     override fun open(): ByteSource {
         val stream = resolver.openInputStream(uri) ?: throw java.io.FileNotFoundException("Cannot open the document")

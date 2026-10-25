@@ -8,7 +8,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done (unit-tested) · 
 | Milestone | Status |
 |---|---|
 | M1 — MVP | 🔶 |
-| M2 — Options & cost | ⬜ |
+| M2 — Options & cost | 🔶 |
 | M3 — Discovery, presets, queue | ⬜ |
 | M4 — macOS polish | ⬜ |
 
@@ -87,13 +87,16 @@ last-used printer and options.
 
 ### Tasks
 
-- ⬜ The full `PrintOptions` model and validators (copies, page ranges, duplex, number-up, orientation,
+- ✅ The full `PrintOptions` model and validators (copies, page ranges, duplex, number-up, orientation,
   fit-to-page, paper size), per [print-options.md](print-options.md).
-- ⬜ `LprCommandBuilder` with all standard options, plus injection tests for each new field.
-- ⬜ `PdfPageCounter`: Android `PdfRenderer`, desktop PDFBox.
-- ⬜ `CostEstimator` with both page-range semantics and both billing units (constants), plus tests.
-- ⬜ Print sheet with the Advanced options section; the Print button label with pages and cost; a cost warning threshold.
-- ⬜ Persistence for the last-used printer and options.
+- ✅ `LprCommandBuilder` with all standard options, plus injection tests for each new field.
+- 🔶 `PdfPageCounter`: desktop PDFBox (unit-tested); Android `PdfRenderer` (builds, not yet run on a device).
+- ✅ `CostEstimator` with both page-range semantics and both billing units (constants), plus tests.
+- 🔶 Print sheet with the Advanced options section; the Print button label with pages and cost; a cost
+  warning threshold. (Model and formatting are unit-tested; the screen itself has not been looked at on a
+  device or in the desktop window.)
+- ✅ Persistence for the last-used printer and layout options (copies and page ranges deliberately start
+  fresh, D-13).
 
 ### Acceptance criteria
 
@@ -103,6 +106,9 @@ last-used printer and options.
 
 ### Manual test checklist
 
+- [ ] The Print button shows the page count and cost; the estimate is `?` for a damaged PDF (try a
+      renamed text file) and printing still works. Android counts pages for a PDF shared from another app.
+- [ ] Reopen the app: the printer, duplex, pages per sheet, orientation, fit-to-page and paper are pre-filled.
 - [ ] Duplex long edge vs short edge comes out correctly in portrait and landscape.
 - [ ] 2-up and 4-up layouts look right.
 - [ ] **Page ranges with 2-up:** print `-o number-up=2 -o page-ranges=1` on a 4-page PDF. Do you get

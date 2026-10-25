@@ -20,6 +20,7 @@ slf4j = "2.0.17"
 kotlinx-serialization = "1.12.0"
 datastore = "1.3.0"
 jna = "5.19.1"
+pdfbox = "3.0.8"
 material3 = "1.12.0-alpha03"
 
 [libraries]
@@ -52,6 +53,7 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences-core", version.ref = "datastore" }
+pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 
 [plugins]

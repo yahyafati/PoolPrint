@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.yahyafati.poolprint.core.model.PoolUsername
+import com.yahyafati.poolprint.core.model.PrintOptions
 import com.yahyafati.poolprint.hostkeys.HostKeyStore
 import com.yahyafati.poolprint.hostkeys.PinnedHostKey
 import kotlinx.coroutines.flow.Flow
@@ -33,7 +34,14 @@ class DataStoreAppSettings(private val store: DataStore<Preferences>) : AppSetti
         store.edit { it[ONBOARDED] = complete }
     }
 
+    override suspend fun getPrintDefaults(): PrintOptions = StoredPrintOptions.fromJson(store.data.first()[PRINT_DEFAULTS])
+
+    override suspend fun setPrintDefaults(options: PrintOptions) {
+        store.edit { it[PRINT_DEFAULTS] = StoredPrintOptions.from(options).toJson() }
+    }
+
     private companion object {
+        val PRINT_DEFAULTS = stringPreferencesKey("print_defaults")
         val USERNAME = stringPreferencesKey("pool_username")
         val PUBLIC_KEY = stringPreferencesKey("public_key")
         val ONBOARDED = booleanPreferencesKey("onboarding_complete")

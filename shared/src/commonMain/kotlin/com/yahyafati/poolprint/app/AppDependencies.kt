@@ -2,6 +2,7 @@ package com.yahyafati.poolprint.app
 
 import com.yahyafati.poolprint.hostkeys.HostKeyStore
 import com.yahyafati.poolprint.keys.KeyManager
+import com.yahyafati.poolprint.pdf.PdfPageCounter
 import com.yahyafati.poolprint.service.PoolServices
 import com.yahyafati.poolprint.settings.AppSettings
 
@@ -11,4 +12,5 @@ class AppDependencies(
     val hostKeys: HostKeyStore,
     val keys: KeyManager,
     val services: PoolServices,
+    val pageCounter: PdfPageCounter,
 )

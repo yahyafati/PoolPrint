@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import com.yahyafati.poolprint.keys.BouncyCastleKeyGenerator
 import com.yahyafati.poolprint.keys.KeyManager
 import com.yahyafati.poolprint.keys.PrivateKeyStore
+import com.yahyafati.poolprint.pdf.PdfPageCounter
 import com.yahyafati.poolprint.service.PoolServices
 import com.yahyafati.poolprint.settings.DataStoreAppSettings
 import com.yahyafati.poolprint.settings.DataStoreHostKeyStore
@@ -15,6 +16,7 @@ fun buildAppDependencies(
     dataStore: DataStore<Preferences>,
     privateKeys: PrivateKeyStore,
     deviceLabel: String,
+    pageCounter: PdfPageCounter,
 ): AppDependencies {
     val settings = DataStoreAppSettings(dataStore)
     val hostKeys = DataStoreHostKeyStore(dataStore)
@@ -23,5 +25,6 @@ fun buildAppDependencies(
         hostKeys = hostKeys,
         keys = KeyManager(BouncyCastleKeyGenerator(), privateKeys, settings, "pool-print@$deviceLabel"),
         services = PoolServices(settings, hostKeys, SshjClientFactory(privateKeys, hostKeys)),
+        pageCounter = pageCounter,
     )
 }

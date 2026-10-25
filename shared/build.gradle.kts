@@ -61,6 +61,7 @@ kotlin {
         }
         jvmMain.dependencies {
             implementation(libs.jna)
+            implementation(libs.pdfbox)
         }
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)

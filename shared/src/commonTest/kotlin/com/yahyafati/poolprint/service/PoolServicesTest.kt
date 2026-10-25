@@ -104,7 +104,7 @@ class PoolServicesTest {
         val result = services.print(job, ByteArraySource(pdf)) { progress += it }
         assertEquals(PrintResult.Sent("tfppr1", "tfppr1-123"), result)
         val call = client.calls.single()
-        assertEquals("'lpr' '-P' 'tfppr1' '-#' '2'", call.command)
+        assertEquals("'lpr' '-P' 'tfppr1' '-#' '2' '-o' 'sides=one-sided' '-o' 'media=A4'", call.command)
         assertTrue(pdf.contentEquals(call.stdin))
         assertEquals(pdf.size.toLong(), progress.last())
     }

@@ -83,6 +83,14 @@ class FakeSettings(username: PoolUsername? = null) : AppSettings {
     override suspend fun setUsername(username: PoolUsername) { usernameState.value = username }
     override suspend fun setPublicKey(line: String) { key.value = line }
     override suspend fun setOnboardingComplete(complete: Boolean) { onboarded.value = complete }
+    var printDefaults = com.yahyafati.poolprint.core.model.PrintOptions()
+    override suspend fun getPrintDefaults() = printDefaults
+    /** Goes through the same conversion as the DataStore, so only what is really persisted comes back. */
+    override suspend fun setPrintDefaults(options: com.yahyafati.poolprint.core.model.PrintOptions) {
+        printDefaults = com.yahyafati.poolprint.settings.StoredPrintOptions.fromJson(
+            com.yahyafati.poolprint.settings.StoredPrintOptions.from(options).toJson(),
+        )
+    }
 }
 
 class FakeHostKeyStore : HostKeyStore {
@@ -129,10 +137,21 @@ class TestDeps(username: PoolUsername? = null) {
     val hostKeys = FakeHostKeyStore()
     val keyStore = FakeKeyStore()
     val generator = FakeKeyGenerator()
+    val pageCounter = FakePageCounter()
     val deps = com.yahyafati.poolprint.app.AppDependencies(
         settings = settings,
         hostKeys = hostKeys,
         keys = com.yahyafati.poolprint.keys.KeyManager(generator, keyStore, settings, "pool-print@test"),
         services = com.yahyafati.poolprint.service.PoolServices(settings, hostKeys, factory),
+        pageCounter = pageCounter,
     )
+}
+
+/** Returns a fixed count (or null for "can't tell"), after an optional suspension for loading-state tests. */
+class FakePageCounter(var pages: Int? = 24) : com.yahyafati.poolprint.pdf.PdfPageCounter {
+    var gate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+    override suspend fun count(document: com.yahyafati.poolprint.pdf.PdfDocumentSource): Int? {
+        gate?.await()
+        return pages
+    }
 }

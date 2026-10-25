@@ -4,7 +4,7 @@ import com.yahyafati.poolprint.transport.ByteSource
 import java.io.File
 import java.io.FileInputStream
 
-class FilePdfSource(private val file: File) : PdfDocumentSource {
+class FilePdfSource(val file: File) : PdfDocumentSource {
     override val displayName: String = file.name
     override val sizeBytes: Long? = file.length().takeIf { it >= 0 }
 
