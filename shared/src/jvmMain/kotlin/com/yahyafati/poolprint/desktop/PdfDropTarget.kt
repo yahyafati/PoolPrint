@@ -8,8 +8,6 @@ import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -25,6 +23,7 @@ import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.awtTransferable
 import androidx.compose.ui.unit.dp
+import com.yahyafati.poolprint.ui.PoolTheme
 import java.awt.datatransfer.DataFlavor
 import java.io.File
 import kotlinx.coroutines.delay
@@ -75,10 +74,10 @@ fun PdfDropTarget(onFiles: (List<File>) -> Boolean, content: @Composable () -> U
 @Composable
 private fun DropHint(text: String) {
     Box(
-        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)).padding(16.dp)
-            .border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary), RoundedCornerShape(16.dp)),
+        Modifier.fillMaxSize().background(PoolTheme.colors.bg.copy(alpha = 0.94f)).padding(16.dp)
+            .border(BorderStroke(2.dp, PoolTheme.colors.rule)),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+        Text(text, style = PoolTheme.type.title, color = PoolTheme.colors.on)
     }
 }

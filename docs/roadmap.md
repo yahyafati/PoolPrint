@@ -47,7 +47,8 @@ readable result.
 - Unit tests pass on `:shared:jvmTest` and `:shared:testAndroidHostTest`.
 - Every user-controlled field reachable in M1 has injection tests.
 - Flow tests with `FakeSshClient` cover success, `AuthRejected`, `HostKeyChanged`, and a non-zero exit with stderr.
-- No password prompt anywhere; password auth is disabled in the SSH config.
+- No password prompt anywhere; password auth is disabled in the SSH config. *(Since D-20: except the optional
+  one-time key install in onboarding; regular commands stay publickey-only.)*
 - The app builds and launches on an Android emulator or device and on macOS. *(Launched on the API 29
   emulator through onboarding; started on macOS without errors.)*
 
@@ -70,11 +71,11 @@ readable result.
       real server may offer other host-key or key-exchange algorithms than the test server; if Test
       connection fails with a protocol error, send the details text.
 - [ ] Android: share a PDF **from another app** and check that Pool Print opens its print sheet; also try
-      the in-app "Choose a PDF…" picker.
+      the in-app "Pick a PDF" picker.
 - [ ] Android: rotate the phone on the print sheet; the document stays.
 - [ ] macOS: first launch creates a Keychain item "Pool Print"; no prompt on later launches.
-- [ ] macOS: "Choose a PDF…" opens the native file dialog and prints the chosen file.
-- [ ] Settings → Forget pinned key → confirm: the next connection asks to trust again.
+- [ ] macOS: "Pick a PDF" opens the native file dialog and prints the chosen file.
+- [ ] Settings → Trusted fingerprint → Forget → confirm: the next connection asks to trust again.
 - [ ] If minification is ever enabled for release builds: install the release APK and run Test
       connection (R8 broke SSH at runtime without the BouncyCastle keep rule).
 
@@ -188,9 +189,19 @@ sets as presets, and see and cancel your own jobs.
 - 🔶 **Add another device** (D-19): Settings → Add a device… appends a pasted public key to `authorized_keys`
   (`AuthorizeKeyCommand`, `PublicKeyLine`). Unit-tested with `FakeSshClient` and injection payloads; the command was
   run against sh and csh locally. Not run against the real server.
+- 🔶 **One-time password key install** (D-20): onboarding → "Add it for me with my pool password" installs the
+  device key with `SshClient.installKeyWithPassword`, then tests the key login. Tested with `FakeSshClient` and the
+  in-process server (password and keyboard-interactive, host key before auth, password zeroed, sent once). Not run
+  against the real server.
 
 ### Manual test checklist
 
+- [ ] Password key install: fresh install → key step → "Add it for me with my pool password" → trust the server
+      (check the fingerprint) → type the password → Add key → Test connection ✓ with the key. `~/.ssh/authorized_keys`
+      has one new line, `ls -ld ~/.ssh` is `drwx------`. Note whether the server used `password` or
+      `keyboard-interactive` and whether it asked for anything besides the password.
+- [ ] Password key install with a wrong password: "didn't accept the password", the field is empty, and nothing was
+      added. After the app restarts, nothing asks for the password again.
 - [ ] Add a device: on a second device (e.g. the phone) copy its key from onboarding, paste it in Settings → Add a
       device… on the Mac → "Added". On the phone, Test connection succeeds. Check that `~/.ssh/authorized_keys`
       on the server has one new line and that `ls -ld ~/.ssh` is `drwx------`.

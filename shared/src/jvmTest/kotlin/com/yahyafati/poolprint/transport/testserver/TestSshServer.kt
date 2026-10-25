@@ -1,8 +1,12 @@
 package com.yahyafati.poolprint.transport.testserver
 
+import java.nio.file.Files
 import java.nio.file.Path
+import java.security.PublicKey
 import java.util.concurrent.CopyOnWriteArrayList
+import org.apache.sshd.common.config.keys.AuthorizedKeyEntry
 import org.apache.sshd.common.config.keys.KeyUtils
+import org.apache.sshd.common.config.keys.PublicKeyEntryResolver
 import org.apache.sshd.common.keyprovider.KeyPairProvider
 import org.apache.sshd.server.SshServer
 import org.apache.sshd.server.auth.keyboard.InteractiveChallenge
@@ -14,7 +18,8 @@ import org.apache.sshd.server.shell.ProcessShellCommandFactory
 /**
  * Test-only in-process SSH server (Apache MINA SSHD). Runs exec requests through `sh -c` on the dev machine.
  * Records every authentication method a client attempts, so tests can prove password and
- * keyboard-interactive are never tried. Synthetic; never talks to anything but loopback.
+ * keyboard-interactive are never tried by regular commands, and are tried exactly once by the one-time
+ * password key install. Synthetic; never talks to anything but loopback.
  */
 class TestSshServer(
     hostKeyFile: Path? = null,
@@ -22,6 +27,17 @@ class TestSshServer(
     listenPort: Int = 0,
     /** Prepended to PATH for exec commands, so tests can supply a fake `lpr`. */
     private val pathPrefix: Path? = null,
+    /** The only password the `password` method accepts; null rejects every password. */
+    private val password: String? = null,
+    /** False leaves the `password` method out entirely (a keyboard-interactive-only server). */
+    passwordMethod: Boolean = true,
+    /** The only answer the keyboard-interactive "Password:" prompt accepts; null rejects every answer. */
+    private val keyboardInteractivePassword: String? = null,
+    /**
+     * HOME for exec commands, so `~/.ssh` is a temp dir and never the developer's own. When set and
+     * [acceptAnyPublicKey] is false, a public key is accepted only if it is in `<homeDir>/.ssh/authorized_keys`.
+     */
+    private val homeDir: Path? = null,
 ) : AutoCloseable {
     val authAttempts = CopyOnWriteArrayList<String>()
 
@@ -31,11 +47,11 @@ class TestSshServer(
         keyPairProvider = SimpleGeneratorHostKeyProvider(hostKeyFile).apply { algorithm = "EdDSA"; keySize = 256 }
         publickeyAuthenticator = org.apache.sshd.server.auth.pubkey.PublickeyAuthenticator { _, key, _ ->
             authAttempts += "publickey:" + KeyUtils.getFingerPrint(key)
-            acceptAnyPublicKey
+            acceptAnyPublicKey || isAuthorized(key)
         }
-        passwordAuthenticator = org.apache.sshd.server.auth.password.PasswordAuthenticator { _, _, _ ->
+        passwordAuthenticator = if (!passwordMethod) null else org.apache.sshd.server.auth.password.PasswordAuthenticator { _, given, _ ->
             authAttempts += "password"
-            false
+            password != null && given == password
         }
         keyboardInteractiveAuthenticator = object : KeyboardInteractiveAuthenticator {
             override fun generateChallenge(
@@ -45,15 +61,24 @@ class TestSshServer(
                 return InteractiveChallenge().apply { interactionName = "x"; addPrompt("Password: ", false) }
             }
             override fun authenticate(session: ServerSession, username: String, responses: MutableList<String>): Boolean =
-                false
+                keyboardInteractivePassword != null && responses == listOf(keyboardInteractivePassword)
         }
         commandFactory = org.apache.sshd.server.command.CommandFactory { channel, command ->
-            val prefixed = if (pathPrefix == null) command else "PATH='$pathPrefix':\"\$PATH\"; $command"
+            var prefixed = if (pathPrefix == null) command else "PATH='$pathPrefix':\"\$PATH\"; $command"
+            if (homeDir != null) prefixed = "HOME='$homeDir'; export HOME; $prefixed"
             ProcessShellCommandFactory.INSTANCE.createCommand(channel, prefixed)
         }
     }
 
     val port: Int get() = sshd.port
+
+    private fun isAuthorized(key: PublicKey): Boolean {
+        val file = homeDir?.resolve(".ssh/authorized_keys") ?: return false
+        if (!Files.exists(file)) return false
+        return AuthorizedKeyEntry.readAuthorizedKeys(file).any {
+            KeyUtils.compareKeys(it.resolvePublicKey(null, PublicKeyEntryResolver.IGNORING), key)
+        }
+    }
 
     /** SHA-256 fingerprint of the server's Ed25519 host key, `SHA256:…`. */
     val hostKeyFingerprint: String

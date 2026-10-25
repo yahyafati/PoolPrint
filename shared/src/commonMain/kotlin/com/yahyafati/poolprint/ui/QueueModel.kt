@@ -114,4 +114,8 @@ class QueueModel(private val deps: AppDependencies, private val scope: Coroutine
     }
 
     fun declineTrust() = mutableState.update { it.copy(askTrust = null) }
+
+    fun dismissFailure() = mutableState.update { it.copy(failure = null) }
+
+    fun dismissNotice() = mutableState.update { it.copy(notice = null) }
 }

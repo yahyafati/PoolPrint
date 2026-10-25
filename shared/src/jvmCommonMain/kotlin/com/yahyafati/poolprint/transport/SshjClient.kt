@@ -1,6 +1,8 @@
 package com.yahyafati.poolprint.transport
 
+import com.yahyafati.poolprint.core.command.AuthorizeKeyCommand
 import com.yahyafati.poolprint.core.command.RemoteCommand
+import com.yahyafati.poolprint.core.model.PublicKeyLine
 import com.yahyafati.poolprint.hostkeys.HostKeyPolicy
 import com.yahyafati.poolprint.hostkeys.HostKeyStore
 import com.yahyafati.poolprint.hostkeys.HostKeyVerdict
@@ -35,14 +37,20 @@ import net.schmizz.sshj.common.Buffer
 import net.schmizz.sshj.common.KeyType
 import net.schmizz.sshj.transport.verification.HostKeyVerifier
 import net.schmizz.sshj.userauth.UserAuthException
+import net.schmizz.sshj.userauth.method.AuthKeyboardInteractive
+import net.schmizz.sshj.userauth.method.AuthPassword
+import net.schmizz.sshj.userauth.method.PasswordResponseProvider
+import net.schmizz.sshj.userauth.password.PasswordFinder
+import net.schmizz.sshj.userauth.password.Resource
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.util.Base64
 import java.security.MessageDigest
 
 /**
- * The real [SshClient] (sshj, D-01). One connection per [exec]. Security rules (docs/security.md):
- * publickey only (password and keyboard-interactive are never attempted), no forwarding, exec only,
- * fixed host-key algorithm preference, host key verified (TOFU) **before** authentication.
+ * The real [SshClient] (sshj, D-01). One connection per call. Security rules (docs/security.md):
+ * [exec] uses publickey only (password and keyboard-interactive are never attempted); only the one-time
+ * [installKeyWithPassword] uses the password, and it runs nothing but the fixed key-install command (D-20).
+ * No forwarding, exec only, fixed host-key algorithm preference, host key verified (TOFU) **before** authentication.
  */
 class SshjClient(
     private val config: ConnectionConfig,
@@ -56,8 +64,64 @@ class SshjClient(
         onUploaded: (Long) -> Unit,
         timeoutMs: Long,
     ): SshResult = withContext(Dispatchers.IO) {
-        val pinned = hostKeys.get(config.host, config.port)
         val pem = privateKeys.load() ?: throw SshException(SshError.Protocol("No SSH key is set up."))
+        try {
+            session(
+                timeoutMs,
+                authenticate = { ssh ->
+                    val keyProvider = try {
+                        ssh.loadKeys(String(pem, Charsets.UTF_8), null, null)
+                    } finally {
+                        pem.fill(0)
+                    }
+                    // authPublickey offers only the publickey method.
+                    ssh.authPublickey(config.username.value, keyProvider)
+                },
+            ) { ssh -> runExec(ssh, command, stdin, onUploaded) }
+        } finally {
+            pem.fill(0)
+        }
+    }
+
+    override suspend fun installKeyWithPassword(password: CharArray, key: PublicKeyLine): SshResult =
+        withContext(Dispatchers.IO) {
+            val handedOut = mutableListOf<CharArray>()
+            val finder = object : PasswordFinder {
+                override fun reqPassword(resource: Resource<*>?): CharArray = password.copyOf().also { handedOut += it }
+                override fun shouldRetry(resource: Resource<*>?) = false
+            }
+            try {
+                session(
+                    SshClient.DEFAULT_TIMEOUT_MS,
+                    authenticate = { ssh -> authWithPassword(ssh, finder) },
+                ) { ssh -> runExec(ssh, AuthorizeKeyCommand.build(), ByteArraySource(AuthorizeKeyCommand.stdin(key)), {}) }
+            } finally {
+                password.fill('\u0000')
+                handedOut.forEach { it.fill('\u0000') }
+            }
+        }
+
+    /**
+     * `password` first, then `keyboard-interactive` (answering only a hidden "Password:" prompt). If the server
+     * checked the password with the first method, a rejection is final: it is never sent a second time.
+     */
+    private fun authWithPassword(ssh: SSHClient, finder: PasswordFinder) {
+        val user = config.username.value
+        try {
+            ssh.auth(user, AuthPassword(finder))
+        } catch (e: UserAuthException) {
+            if ("password" in ssh.userAuth.allowedMethods) throw e
+            ssh.auth(user, AuthKeyboardInteractive(PasswordResponseProvider(finder)))
+        }
+    }
+
+    /** Connects, verifies the host key before anything else, runs [authenticate], then [block]. Must run on IO. */
+    private suspend fun session(
+        timeoutMs: Long,
+        authenticate: (SSHClient) -> Unit,
+        block: suspend (SSHClient) -> SshResult,
+    ): SshResult {
+        val pinned = hostKeys.get(config.host, config.port)
         installBouncyCastle()
 
         val verdict = AtomicReference<HostKeyVerdict?>()
@@ -65,47 +129,39 @@ class SshjClient(
         val timedOut = AtomicBoolean(false)
         var connected = false
         try {
-            run {
-                coroutineScope {
-                    // Blocking socket I/O ignores coroutine cancellation. The watcher closes the connection when the
-                    // deadline passes or the scope is cancelled (user Cancel), which unblocks every pending read or write.
-                    val watcher = launch(Dispatchers.Default) {
-                        try {
-                            delay(timeoutMs)
-                            timedOut.set(true)
-                        } finally {
-                            // Socket first: a regular disconnect needs the transport's write lock, which a writer
-                            // blocked on a full TCP buffer is holding.
-                            runCatching { ssh.socket?.close() }
-                            runCatching { ssh.close() }
-                        }
-                    }
+            return coroutineScope {
+                // Blocking socket I/O ignores coroutine cancellation. The watcher closes the connection when the
+                // deadline passes or the scope is cancelled (user Cancel), which unblocks every pending read or write.
+                val watcher = launch(Dispatchers.Default) {
                     try {
-                        ssh.connectTimeout = config.connectTimeoutMs
-                        ssh.timeout = 0 // the overall deadline is withTimeout, not a per-read socket timeout
-                        ssh.addHostKeyVerifier(object : HostKeyVerifier {
-                            override fun verify(hostname: String, port: Int, key: PublicKey): Boolean {
-                                val offered = PinnedHostKey(KeyType.fromKey(key).toString(), fingerprintOf(key))
-                                val result = HostKeyPolicy.evaluate(pinned, offered)
-                                verdict.set(result)
-                                return result is HostKeyVerdict.Trusted
-                            }
-
-                            override fun findExistingAlgorithms(hostname: String, port: Int): List<String> = emptyList()
-                        })
-                        ssh.connect(config.host, config.port)
-                        connected = true
-                        val keyProvider = try {
-                            ssh.loadKeys(String(pem, Charsets.UTF_8), null, null)
-                        } finally {
-                            pem.fill(0)
-                        }
-                        // authPublickey offers only the publickey method.
-                        ssh.authPublickey(config.username.value, keyProvider)
-                        runExec(ssh, command, stdin, onUploaded)
+                        delay(timeoutMs)
+                        timedOut.set(true)
                     } finally {
-                        watcher.cancel()
+                        // Socket first: a regular disconnect needs the transport's write lock, which a writer
+                        // blocked on a full TCP buffer is holding.
+                        runCatching { ssh.socket?.close() }
+                        runCatching { ssh.close() }
                     }
+                }
+                try {
+                    ssh.connectTimeout = config.connectTimeoutMs
+                    ssh.timeout = 0 // the overall deadline is withTimeout, not a per-read socket timeout
+                    ssh.addHostKeyVerifier(object : HostKeyVerifier {
+                        override fun verify(hostname: String, port: Int, key: PublicKey): Boolean {
+                            val offered = PinnedHostKey(KeyType.fromKey(key).toString(), fingerprintOf(key))
+                            val result = HostKeyPolicy.evaluate(pinned, offered)
+                            verdict.set(result)
+                            return result is HostKeyVerdict.Trusted
+                        }
+
+                        override fun findExistingAlgorithms(hostname: String, port: Int): List<String> = emptyList()
+                    })
+                    ssh.connect(config.host, config.port)
+                    connected = true
+                    authenticate(ssh)
+                    block(ssh)
+                } finally {
+                    watcher.cancel()
                 }
             }
         } catch (e: Throwable) {
@@ -114,7 +170,6 @@ class SshjClient(
             if (e is CancellationException) throw e
             throw mapFailure(e, verdict.get(), connected)
         } finally {
-            pem.fill(0)
             runCatching { ssh.close() }
         }
     }

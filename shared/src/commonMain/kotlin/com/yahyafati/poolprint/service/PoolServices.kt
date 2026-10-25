@@ -6,6 +6,7 @@ import com.yahyafati.poolprint.core.command.RemoteCommand
 import com.yahyafati.poolprint.core.command.TestConnectionCommand
 import com.yahyafati.poolprint.core.model.PrintJob
 import com.yahyafati.poolprint.core.model.PublicKeyLine
+import com.yahyafati.poolprint.core.validation.valueOrNull
 import com.yahyafati.poolprint.hostkeys.HostKeyStore
 import com.yahyafati.poolprint.hostkeys.PinnedHostKey
 import com.yahyafati.poolprint.settings.AppSettings
@@ -52,6 +53,15 @@ sealed interface AuthorizeResult {
     data object Added : AuthorizeResult
 
     data class Failed(val failure: UserFailure) : AuthorizeResult
+}
+
+sealed interface InstallKeyResult {
+    data object Installed : InstallKeyResult
+
+    /** First connection: trust the server first. The password was not sent. */
+    data class NeedsTrust(val key: PinnedHostKey) : InstallKeyResult
+
+    data class Failed(val failure: UserFailure) : InstallKeyResult
 }
 
 /** Test connection and print, on top of [SshClient]. Holds no state. */
@@ -161,6 +171,34 @@ class PoolServices(
                 AuthorizeResult.Failed(UserFailure(FailureKind.Protocol, details = "The server's host key is not trusted yet."))
             is RemoteOutcome.Failed -> AuthorizeResult.Failed(outcome.failure)
         }
+
+    /**
+     * Onboarding shortcut (D-20): logs in once with the pool [password] and installs this device's public key.
+     * The password is not stored anywhere and is zeroed before this returns, whatever the outcome.
+     */
+    suspend fun installKeyWithPassword(password: CharArray): InstallKeyResult {
+        try {
+            val client = client() ?: return InstallKeyResult.Failed(UserFailure(FailureKind.NotConfigured))
+            val key = settings.getPublicKey()?.let { PublicKeyLine.parse(it).valueOrNull() }
+                ?: return InstallKeyResult.Failed(UserFailure(FailureKind.NotConfigured))
+            val result = client.installKeyWithPassword(password, key)
+            return if (result.exitCode == 0) {
+                InstallKeyResult.Installed
+            } else {
+                InstallKeyResult.Failed(
+                    UserFailure(FailureKind.CommandFailed, exitCode = result.exitCode, details = result.stderr.trim().ifEmpty { null }),
+                )
+            }
+        } catch (e: SshException) {
+            return when (val error = e.error) {
+                is SshError.HostKeyUnknown -> InstallKeyResult.NeedsTrust(PinnedHostKey(error.keyType, error.fingerprint))
+                SshError.AuthRejected -> InstallKeyResult.Failed(UserFailure(FailureKind.PasswordRejected))
+                else -> InstallKeyResult.Failed(ErrorCatalogue.fromTransport(error))
+            }
+        } finally {
+            password.fill('\u0000')
+        }
+    }
 
     /** Pins the key the user just confirmed. Only called after an explicit tap on "Trust". */
     suspend fun trust(key: PinnedHostKey) {

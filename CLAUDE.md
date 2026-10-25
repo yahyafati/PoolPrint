@@ -18,7 +18,8 @@ Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a 
 
 ## Hard rules (summary — details in the docs)
 
-- No backend/cloud/telemetry; no password auth ever (publickey only); no remote file copies; no filenames or free text in remote commands.
+- No backend/cloud/telemetry; no remote file copies; no filenames or free text in remote commands.
+- Publickey auth only. The single exception is the optional one-time onboarding key install (D-20): the pool password is used once to append the device key with the fixed `AuthorizeKeyCommand`, is never stored, and can run nothing else.
 - Remote commands only via the `core.command` builders from typed, allow-listed values, every token shell-quoted. Any change there needs injection tests.
 - `commonMain` stays platform-free; SSH code lives in `jvmCommonMain`.
 - No secret prompts in regular use: after onboarding, printing never asks for a password/passphrase/unlock.

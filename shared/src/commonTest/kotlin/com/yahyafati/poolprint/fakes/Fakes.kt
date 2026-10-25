@@ -1,6 +1,8 @@
 package com.yahyafati.poolprint.fakes
 
+import com.yahyafati.poolprint.core.command.AuthorizeKeyCommand
 import com.yahyafati.poolprint.core.command.RemoteCommand
+import com.yahyafati.poolprint.core.model.PublicKeyLine
 import com.yahyafati.poolprint.core.model.PoolUsername
 import com.yahyafati.poolprint.hostkeys.HostKeyStore
 import com.yahyafati.poolprint.hostkeys.PinnedHostKey
@@ -23,7 +25,8 @@ import kotlinx.coroutines.flow.map
  * responses is consumed in order; the last one repeats.
  */
 class FakeSshClient : SshClient {
-    class Call(val command: String, val stdin: ByteArray?)
+    /** [password] is set only for [installKeyWithPassword] calls (a copy taken before the client zeroes it). */
+    class Call(val command: String, val stdin: ByteArray?, val password: String? = null)
 
     sealed interface Script {
         data class Result(val value: SshResult) : Script
@@ -54,6 +57,16 @@ class FakeSshClient : SshClient {
             bytes = out.toByteArray()
         }
         calls += Call(command.value, bytes)
+        return next()
+    }
+
+    override suspend fun installKeyWithPassword(password: CharArray, key: PublicKeyLine): SshResult {
+        calls += Call(AuthorizeKeyCommand.build().value, AuthorizeKeyCommand.stdin(key), password.concatToString())
+        password.fill('\u0000')
+        return next()
+    }
+
+    private suspend fun next(): SshResult {
         val script = if (scripts.size > 1) scripts.removeAt(0) else scripts.first()
         return when (script) {
             is Script.Result -> script.value

@@ -58,6 +58,14 @@ fun App(
         }
 
         val scope = rememberCoroutineScope()
+        // The print sheet's model lives up here, so opening Queue or Settings from the sheet keeps its options.
+        // The remembered printer and options load first (a quick local read), so the sheet opens filled in.
+        // The cached printer list is read too, so a remembered discovered printer is still found.
+        val doc = document
+        val remembered by produceState<Pair<PdfDocumentSource, PrintOptions>?>(null, doc) {
+            value = doc?.let { it to deps.settings.getPrintDefaults(deps.discovery.cached().knownPrinters) }
+        }
+        val printModel = remembered?.takeIf { it.first == doc }?.let { (d, initial) -> remember(d) { PrintModel(deps, d, scope, initial) } }
         when {
             onboarded == null -> Unit
             onboarded == false -> {
@@ -76,27 +84,23 @@ fun App(
                 val model = remember { PresetsModel(deps, scope) }
                 PresetsScreen(model, onClose = { screen = Overlay.None })
             }
-            document != null -> {
-                val doc = document!!
-                // The remembered printer and options load first (a quick local read), so the sheet opens filled in.
-                // The cached printer list is read too, so a remembered discovered printer is still found.
-                val remembered by produceState<PrintOptions?>(null, doc) {
-                    value = deps.settings.getPrintDefaults(deps.discovery.cached().knownPrinters)
+            doc != null -> printModel?.let { model ->
+                val state by model.state.collectAsState()
+                val busy = state.phase is PrintPhase.Uploading || state.phase is PrintPhase.AskTrust
+                DisposableEffect(model, state.canPrint) {
+                    val clear = commands.registerPrint(if (state.canPrint) model::print else null)
+                    onDispose { clear() }
                 }
-                remembered?.let { initial ->
-                    val model = remember(doc) { PrintModel(deps, doc, scope, initial) }
-                    val state by model.state.collectAsState()
-                    val busy = state.phase is PrintPhase.Uploading || state.phase is PrintPhase.AskTrust
-                    DisposableEffect(model, state.canPrint) {
-                        val clear = commands.registerPrint(if (state.canPrint) model::print else null)
-                        onDispose { clear() }
-                    }
-                    DisposableEffect(busy) {
-                        sending = busy
-                        onDispose { sending = false }
-                    }
-                    PrintScreen(model, onClose = { document = null }, onShowKey = { screen = Overlay.Settings })
+                DisposableEffect(busy) {
+                    sending = busy
+                    onDispose { sending = false }
                 }
+                PrintScreen(
+                    model,
+                    onClose = { document = null },
+                    onShowKey = { screen = Overlay.Settings },
+                    onQueue = { screen = Overlay.Queue },
+                )
             }
             else -> HomeScreen(
                 deps,

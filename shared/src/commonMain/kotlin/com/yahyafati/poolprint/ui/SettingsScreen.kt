@@ -1,137 +1,223 @@
 package com.yahyafati.poolprint.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.yahyafati.poolprint.service.FailureKind
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import poolprint.shared.generated.resources.*
 
 @Composable
 fun SettingsScreen(model: SettingsModel, onClose: () -> Unit) {
     val state by model.state.collectAsState()
-    ScreenColumn {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(stringResource(Res.string.settings_title), style = MaterialTheme.typography.headlineMedium)
-            TextButton(onClick = onClose) { Text(stringResource(Res.string.action_done)) }
-        }
-        state.username?.let {
-            Text(stringResource(Res.string.settings_username), style = MaterialTheme.typography.labelLarge)
-            Text(it.value)
-        }
-        state.publicKey?.let { KeyInstructions(it) }
-
-        Text(stringResource(Res.string.settings_host_key), style = MaterialTheme.typography.labelLarge)
-        val pinned = state.hostKey
-        if (pinned == null) {
-            Text(stringResource(Res.string.settings_host_key_none))
-        } else {
-            Text(pinned.type, style = MaterialTheme.typography.bodySmall)
-            SelectionContainer { Text(pinned.fingerprint, fontFamily = FontFamily.Monospace) }
-            OutlinedButton(onClick = { model.ask(SettingsConfirm.ForgetHostKey) }) { Text(stringResource(Res.string.settings_forget_host_key)) }
-        }
-        Text(stringResource(Res.string.settings_discovery), style = MaterialTheme.typography.labelLarge)
-        val updatedAt = state.discoveryUpdatedAt
-        Text(
-            if (updatedAt == null) stringResource(Res.string.settings_discovery_never)
-            else stringResource(Res.string.settings_discovery_updated, state.discoveryPrinterCount, formatTimestamp(updatedAt)),
-        )
-        OutlinedButton(onClick = model::refreshDiscovery, enabled = state.discoveryRefresh != DiscoveryRefresh.Running) {
-            Text(stringResource(if (state.discoveryRefresh == DiscoveryRefresh.Running) Res.string.settings_discovery_running else Res.string.settings_discovery_refresh))
-        }
-        when (state.discoveryRefresh) {
-            DiscoveryRefresh.Updated -> Text(stringResource(Res.string.settings_discovery_done))
-            DiscoveryRefresh.Unavailable -> Text(stringResource(Res.string.settings_discovery_failed))
-            DiscoveryRefresh.NeedsTrust -> Text(stringResource(Res.string.settings_discovery_trust))
-            else -> Unit
-        }
-        Text(stringResource(Res.string.settings_add_device), style = MaterialTheme.typography.labelLarge)
-        AddDeviceSection(state.addDevice, model)
-        OutlinedButton(onClick = { model.ask(SettingsConfirm.RegenerateKey) }) { Text(stringResource(Res.string.settings_regenerate)) }
-        Text(stringResource(Res.string.settings_about), style = MaterialTheme.typography.bodySmall)
+    val addDevice = state.addDevice
+    if (addDevice is AddDevice.Failed && addDevice.failure.kind == FailureKind.HostKeyChanged) {
+        HostKeyChangedScreen(addDevice.failure, onClose = model::closeAddDevice)
+        return
     }
-
-    when (state.confirm) {
-        SettingsConfirm.ForgetHostKey -> ConfirmDialog(
-            title = stringResource(Res.string.settings_forget_confirm_title),
-            body = stringResource(Res.string.settings_forget_confirm_body),
-            action = stringResource(Res.string.settings_forget_confirm_action),
-            onConfirm = model::confirmForgetHostKey,
-            onDismiss = model::cancelConfirm,
-        )
-        SettingsConfirm.RegenerateKey -> ConfirmDialog(
-            title = stringResource(Res.string.settings_regenerate_confirm_title),
-            body = stringResource(Res.string.settings_regenerate_confirm_body),
-            action = stringResource(Res.string.settings_regenerate_confirm_action),
-            onConfirm = model::confirmRegenerateKey,
-            onDismiss = model::cancelConfirm,
-        )
-        SettingsConfirm.None -> Unit
-    }
-}
-
-@Composable
-private fun AddDeviceSection(addDevice: AddDevice, model: SettingsModel) {
-    when (addDevice) {
-        AddDevice.Closed -> OutlinedButton(onClick = model::openAddDevice) { Text(stringResource(Res.string.settings_add_device_open)) }
-        is AddDevice.Form -> {
-            Text(stringResource(Res.string.settings_add_device_body))
-            OutlinedTextField(
-                value = addDevice.input,
-                onValueChange = model::onAddDeviceInput,
-                label = { Text(stringResource(Res.string.settings_add_device_label)) },
-                isError = addDevice.invalid,
-                supportingText = if (addDevice.invalid) { { Text(stringResource(Res.string.settings_add_device_invalid)) } } else null,
-                minLines = 2,
-                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = model::authorizeDevice, enabled = addDevice.input.isNotBlank()) {
-                    Text(stringResource(Res.string.settings_add_device_action))
+    val c = PoolTheme.colors
+    val t = PoolTheme.type
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+    val sharer = rememberTextSharer()
+    PhoneScreen(
+        topBar = { TopBar(stringResource(Res.string.settings_title), onBack = onClose) },
+        overlay = {
+            when (state.confirm) {
+                SettingsConfirm.ForgetHostKey -> ConfirmPanel(stringResource(Res.string.settings_forget_confirm_title), model::cancelConfirm, danger = true) {
+                    Text(stringResource(Res.string.settings_forget_confirm_body), style = t.bodySmall, color = c.onVariant)
+                    ConfirmButtons(
+                        stringResource(Res.string.settings_forget_confirm_action),
+                        model::confirmForgetHostKey,
+                        stringResource(Res.string.action_cancel),
+                        model::cancelConfirm,
+                    )
                 }
-                TextButton(onClick = model::closeAddDevice) { Text(stringResource(Res.string.action_cancel)) }
+                SettingsConfirm.RegenerateKey -> ConfirmPanel(stringResource(Res.string.settings_regenerate_confirm_title), model::cancelConfirm, danger = true) {
+                    Text(stringResource(Res.string.settings_regenerate_confirm_body), style = t.bodySmall, color = c.onVariant)
+                    ConfirmButtons(
+                        stringResource(Res.string.settings_regenerate_confirm_action),
+                        model::confirmRegenerateKey,
+                        stringResource(Res.string.settings_regenerate_keep),
+                        model::cancelConfirm,
+                    )
+                }
+                SettingsConfirm.None -> Unit
+            }
+        },
+    ) {
+        Column(Modifier.gutter()) {
+            SectionLabel(stringResource(Res.string.settings_account), Modifier.padding(top = 20.dp, bottom = 4.dp))
+            ListRow {
+                RowText(
+                    stringResource(Res.string.settings_username),
+                    Modifier.weight(1f),
+                    subtitle = state.username?.value ?: "—",
+                    subtitleStyle = t.mono.copy(fontSize = 14.sp, lineHeight = 20.sp),
+                )
+            }
+            Rule(strong = false)
+
+            Section(stringResource(Res.string.settings_device_key))
+            state.publicKey?.let { key ->
+                MonoBox(key)
+                Row(Modifier.padding(top = 10.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BlockButton(
+                        stringResource(Res.string.action_copy),
+                        { scope.launch { clipboard.setText(key) } },
+                        Modifier.weight(1f),
+                        kind = ButtonKind.Outline,
+                        height = 44.dp,
+                        icon = PoolIcons.Copy,
+                    )
+                    sharer?.let { share ->
+                        BlockButton(
+                            stringResource(Res.string.action_share),
+                            { share(key) },
+                            Modifier.weight(1f),
+                            kind = ButtonKind.Outline,
+                            height = 44.dp,
+                            icon = PoolIcons.Share,
+                        )
+                    }
+                }
+            }
+            ListRow(
+                onClick = if (addDevice == AddDevice.Closed) model::openAddDevice else model::closeAddDevice,
+                trailing = { Chevron(if (addDevice == AddDevice.Closed) "›" else "▴") },
+            ) {
+                RowText(stringResource(Res.string.settings_add_device), Modifier.weight(1f), subtitle = stringResource(Res.string.settings_add_device_hint))
+            }
+            if (addDevice != AddDevice.Closed) AddDeviceSection(addDevice, model)
+            Rule(strong = false)
+            ListRow(onClick = { model.ask(SettingsConfirm.RegenerateKey) }) {
+                RowText(
+                    stringResource(Res.string.settings_regenerate),
+                    Modifier.weight(1f),
+                    subtitle = stringResource(Res.string.settings_regenerate_hint),
+                    titleColor = c.error,
+                )
+            }
+            Rule(strong = false)
+
+            Section(stringResource(Res.string.settings_server))
+            val pinned = state.hostKey
+            ListRow(
+                minHeight = 72.dp,
+                trailing = {
+                    if (pinned != null) TextAction(stringResource(Res.string.settings_forget_host_key), { model.ask(SettingsConfirm.ForgetHostKey) })
+                },
+            ) {
+                RowText(
+                    stringResource(Res.string.settings_host_key),
+                    Modifier.weight(1f),
+                    subtitle = pinned?.let { "${it.type} · ${it.fingerprint}" } ?: stringResource(Res.string.settings_host_key_none),
+                    subtitleStyle = if (pinned != null) t.monoSmall else t.caption,
+                )
+            }
+            Rule(strong = false)
+
+            Section(stringResource(Res.string.settings_printers))
+            val running = state.discoveryRefresh == DiscoveryRefresh.Running
+            ListRow(
+                onClick = if (running) null else model::refreshDiscovery,
+                trailing = { IconButton48(PoolIcons.Refresh, stringResource(Res.string.settings_discovery_refresh), model::refreshDiscovery, enabled = !running) },
+            ) {
+                RowText(stringResource(Res.string.settings_discovery_refresh), Modifier.weight(1f), subtitle = discoverySubtitle(state))
+            }
+            if (running) BarProgress(null)
+            Rule(strong = false)
+
+            Section(stringResource(Res.string.settings_about_title))
+            ListRow {
+                RowText(stringResource(Res.string.app_name), Modifier.weight(1f), subtitle = stringResource(Res.string.settings_about))
             }
         }
-        AddDevice.Running -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            CircularProgressIndicator()
-            Text(stringResource(Res.string.settings_add_device_running))
-        }
-        is AddDevice.Added -> {
-            Text(stringResource(Res.string.settings_add_device_done, addDevice.comment), color = MaterialTheme.colorScheme.primary)
-            TextButton(onClick = model::closeAddDevice) { Text(stringResource(Res.string.action_done)) }
-        }
-        is AddDevice.Failed -> {
-            FailureCard(addDevice.failure, onRetry = model::openAddDevice)
-            TextButton(onClick = model::closeAddDevice) { Text(stringResource(Res.string.action_cancel)) }
-        }
     }
 }
 
+/** A strong rule and an uppercase label opening a settings section. */
 @Composable
-private fun ConfirmDialog(title: String, body: String, action: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { Text(body) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(action) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) } },
-    )
+private fun Section(title: String) {
+    Rule(Modifier.padding(top = 20.dp))
+    SectionLabel(title, Modifier.padding(top = 24.dp, bottom = 8.dp))
+}
+
+@Composable
+private fun discoverySubtitle(state: SettingsState): String {
+    val updatedAt = state.discoveryUpdatedAt
+    val known = if (updatedAt == null) {
+        stringResource(Res.string.settings_discovery_never)
+    } else {
+        stringResource(Res.string.settings_discovery_updated, state.discoveryPrinterCount, formatTimestamp(updatedAt))
+    }
+    val outcome = when (state.discoveryRefresh) {
+        DiscoveryRefresh.Running -> stringResource(Res.string.settings_discovery_running)
+        DiscoveryRefresh.Updated -> stringResource(Res.string.settings_discovery_done)
+        DiscoveryRefresh.Unavailable -> stringResource(Res.string.settings_discovery_failed)
+        DiscoveryRefresh.NeedsTrust -> stringResource(Res.string.settings_discovery_trust)
+        DiscoveryRefresh.None -> null
+    }
+    return listOfNotNull(known, outcome).joinToString("\n")
+}
+
+/** Paste another device's public key and append it to `authorized_keys` over this device's login. */
+@Composable
+private fun AddDeviceSection(addDevice: AddDevice, model: SettingsModel) {
+    val c = PoolTheme.colors
+    val t = PoolTheme.type
+    Column(Modifier.padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        when (addDevice) {
+            AddDevice.Closed -> Unit
+            is AddDevice.Form -> {
+                Text(stringResource(Res.string.settings_add_device_body), style = t.bodySmall, color = c.onVariant)
+                PoolTextField(
+                    value = addDevice.input,
+                    onValueChange = model::onAddDeviceInput,
+                    label = stringResource(Res.string.settings_add_device_label),
+                    error = if (addDevice.invalid) stringResource(Res.string.settings_add_device_invalid) else null,
+                    textStyle = t.monoSmall,
+                    singleLine = false,
+                    minLines = 3,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    BlockButton(
+                        stringResource(Res.string.settings_add_device_action),
+                        model::authorizeDevice,
+                        Modifier.weight(1f),
+                        height = 44.dp,
+                        trailing = "→",
+                        enabled = addDevice.input.isNotBlank(),
+                    )
+                    TextAction(stringResource(Res.string.action_cancel), model::closeAddDevice, color = c.onVariant, style = t.buttonSmall)
+                }
+            }
+            AddDevice.Running -> {
+                BarProgress(null)
+                Text(stringResource(Res.string.settings_add_device_running), style = t.bodySmall, color = c.onVariant)
+            }
+            is AddDevice.Added -> {
+                Text(stringResource(Res.string.settings_add_device_done, addDevice.comment), style = t.bodySmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = c.primary)
+                TextAction(stringResource(Res.string.action_done), model::closeAddDevice)
+            }
+            is AddDevice.Failed -> {
+                FailureCard(addDevice.failure, onRetry = model::openAddDevice)
+                TextAction(stringResource(Res.string.action_cancel), model::closeAddDevice, color = c.onVariant, style = t.buttonSmall)
+            }
+        }
+    }
 }

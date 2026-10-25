@@ -63,15 +63,20 @@ b/w vs colour classification, because that drives the cost estimate.
 2. Give full control over the standard CUPS options, plus printer-specific options found on the server.
 3. Show the **page count and estimated cost before printing**, e.g. `Print · 12 pages · 0.60 €`.
 4. Explain what to do when something goes wrong, instead of just showing an error.
-5. Be secure by construction: key-only auth, pinned host key, injection-proof command building.
+5. Be secure by construction: key-only auth (the password is used at most once, to install the key), pinned host
+   key, injection-proof command building.
 
 ## Non-goals and hard constraints
 
 These are **not negotiable** without an explicit decision from the owner:
 
 - **No backend, no cloud, no web version.** The device talks directly to the pool login server over SSH.
-- **No password authentication for regular use.** The app never asks for or stores the pool password.
-  Only SSH key authentication is used. Password and keyboard-interactive auth are disabled in the client.
+- **No password authentication for regular use.** The app never stores the pool password. Every command
+  (test connection, printing, discovery, queue, "Add a device") uses SSH key authentication only; password and
+  keyboard-interactive auth are never attempted for them. The one exception is optional: during onboarding the
+  user may type the pool password once so the app can append the device key to `authorized_keys` (D-20). That
+  login runs only the fixed key-install command, the password is kept in memory for that attempt alone, and
+  everything afterwards uses the key.
 - **No telemetry, analytics or crash reporting** sent anywhere.
 - **No files on the remote side.** The PDF is streamed into `lpr`'s stdin. Nothing is copied to the
   home directory (no `scp`/`sftp`).

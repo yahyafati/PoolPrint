@@ -2,6 +2,7 @@ package com.yahyafati.poolprint.transport
 
 import com.yahyafati.poolprint.core.command.RemoteCommand
 import com.yahyafati.poolprint.core.model.PoolUsername
+import com.yahyafati.poolprint.core.model.PublicKeyLine
 
 /** Streaming without `java.io`. Platform code wraps a file or a content URI. */
 interface ByteSource : AutoCloseable {
@@ -31,7 +32,7 @@ sealed interface SshError {
     /** DNS failure, no route, refused, or a timeout while connecting. */
     data object HostUnreachable : SshError
 
-    /** The key is not in `authorized_keys` (or was refused). */
+    /** The key is not in `authorized_keys` (or was refused); for [SshClient.installKeyWithPassword], the password. */
     data object AuthRejected : SshError
 
     /** First connection: nothing is pinned yet. Raised before authentication. */
@@ -71,6 +72,15 @@ interface SshClient {
         onUploaded: (Long) -> Unit = {},
         timeoutMs: Long = DEFAULT_TIMEOUT_MS,
     ): SshResult
+
+    /**
+     * One-time setup (D-20): logs in with the pool [password] instead of the device key and appends [key] to
+     * `authorized_keys` with the fixed `AuthorizeKeyCommand`. It runs nothing else, so the password can't be used
+     * for anything but installing a key. The host key is verified (TOFU) before the password is sent, exactly as
+     * for [exec]. [password] is zeroed before this returns.
+     * @throws SshException for transport failures; a wrong password is [SshError.AuthRejected].
+     */
+    suspend fun installKeyWithPassword(password: CharArray, key: PublicKeyLine): SshResult
 
     companion object {
         const val DEFAULT_TIMEOUT_MS = 30_000L
