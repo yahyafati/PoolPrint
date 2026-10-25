@@ -185,8 +185,15 @@ sets as presets, and see and cancel your own jobs.
   (`suggestRuntimeModules`). Not checked: opening a real PDF and counting its pages in the packaged app.
 - 🔶 Desktop layout tweaks: minimum window size, File menu with ⌘O (open) and ⌘P (print). Built, not driven.
 
+- 🔶 **Add another device** (D-19): Settings → Add a device… appends a pasted public key to `authorized_keys`
+  (`AuthorizeKeyCommand`, `PublicKeyLine`). Unit-tested with `FakeSshClient` and injection payloads; the command was
+  run against sh and csh locally. Not run against the real server.
+
 ### Manual test checklist
 
+- [ ] Add a device: on a second device (e.g. the phone) copy its key from onboarding, paste it in Settings → Add a
+      device… on the Mac → "Added". On the phone, Test connection succeeds. Check that `~/.ssh/authorized_keys`
+      on the server has one new line and that `ls -ld ~/.ssh` is `drwx------`.
 - [ ] Drag a PDF from Finder onto the window → a "Drop a PDF to print it" hint shows while hovering and
       the print sheet opens on drop. Dragging a non-PDF shows "Only PDF files can be printed."
 - [ ] Drop a PDF while a job is uploading: nothing changes. Drop one while Settings or Queue is open: the

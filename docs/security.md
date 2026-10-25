@@ -98,6 +98,16 @@ That's usually a POSIX shell, but csh-family shells exist. So defence is layered
 Never in a remote command: filenames, document titles, the pool username (it goes into the SSH
 connection config instead), preset names, or any free text.
 
+### Adding a device's key
+
+"Add device" (D-19) appends a public key to `~/.ssh/authorized_keys` from a device that can already log in. Its
+command (`AuthorizeKeyCommand`) is one **fixed string with no variable part**; the key goes in on **stdin**. So the
+shell never sees anything the user typed. The key itself is a `PublicKeyLine`, rebuilt from validated parts: type
+`ssh-ed25519`, a 68-character base64 blob of the right shape, and an optional comment `[A-Za-z0-9._@-]{1,64}`.
+Options such as `command="…"`, other key types, several lines or any other character are rejected, never sanitised.
+Because a key can be authorized this way, only an already-authenticated device can add one; the server's own
+`authorized_keys` remains the authority and the user can remove any line there.
+
 ### Required injection tests
 
 For **every** user-controlled field (printer, copies, page ranges, paper size or enum mapping,

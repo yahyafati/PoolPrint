@@ -1,12 +1,15 @@
 package com.yahyafati.poolprint.service
 
+import com.yahyafati.poolprint.core.command.AuthorizeKeyCommand
 import com.yahyafati.poolprint.core.command.LprCommandBuilder
 import com.yahyafati.poolprint.core.command.RemoteCommand
 import com.yahyafati.poolprint.core.command.TestConnectionCommand
 import com.yahyafati.poolprint.core.model.PrintJob
+import com.yahyafati.poolprint.core.model.PublicKeyLine
 import com.yahyafati.poolprint.hostkeys.HostKeyStore
 import com.yahyafati.poolprint.hostkeys.PinnedHostKey
 import com.yahyafati.poolprint.settings.AppSettings
+import com.yahyafati.poolprint.transport.ByteArraySource
 import com.yahyafati.poolprint.transport.ByteSource
 import com.yahyafati.poolprint.transport.ConnectionConfig
 import com.yahyafati.poolprint.transport.PoolServer
@@ -43,6 +46,12 @@ sealed interface RemoteOutcome {
     data class NeedsTrust(val key: PinnedHostKey) : RemoteOutcome
 
     data class Failed(val failure: UserFailure) : RemoteOutcome
+}
+
+sealed interface AuthorizeResult {
+    data object Added : AuthorizeResult
+
+    data class Failed(val failure: UserFailure) : AuthorizeResult
 }
 
 /** Test connection and print, on top of [SshClient]. Holds no state. */
@@ -116,10 +125,14 @@ class PoolServices(
      * Runs a command built by one of the `core.command` builders (so it is already validated and quoted) and
      * maps transport failures to a [RemoteOutcome]. Used by discovery and the queue.
      */
-    suspend fun run(command: RemoteCommand, timeoutMs: Long = SshClient.DEFAULT_TIMEOUT_MS): RemoteOutcome {
+    suspend fun run(
+        command: RemoteCommand,
+        timeoutMs: Long = SshClient.DEFAULT_TIMEOUT_MS,
+        stdin: ByteSource? = null,
+    ): RemoteOutcome {
         val client = client() ?: return RemoteOutcome.Failed(UserFailure(FailureKind.NotConfigured))
         return try {
-            RemoteOutcome.Done(client.exec(command, timeoutMs = timeoutMs))
+            RemoteOutcome.Done(client.exec(command, stdin = stdin, timeoutMs = timeoutMs))
         } catch (e: SshException) {
             val error = e.error
             if (error is SshError.HostKeyUnknown) {
@@ -129,6 +142,25 @@ class PoolServices(
             }
         }
     }
+
+    /**
+     * "Add device": appends [key] to `authorized_keys` over this device's own key login. Only reachable from a
+     * device that already works, so the host key is pinned; if it somehow isn't, that's reported as a failure.
+     */
+    suspend fun authorizeDevice(key: PublicKeyLine): AuthorizeResult =
+        when (val outcome = run(AuthorizeKeyCommand.build(), stdin = ByteArraySource(AuthorizeKeyCommand.stdin(key)))) {
+            is RemoteOutcome.Done ->
+                if (outcome.result.exitCode == 0) {
+                    AuthorizeResult.Added
+                } else {
+                    AuthorizeResult.Failed(
+                        UserFailure(FailureKind.CommandFailed, exitCode = outcome.result.exitCode, details = outcome.result.stderr.trim().ifEmpty { null }),
+                    )
+                }
+            is RemoteOutcome.NeedsTrust ->
+                AuthorizeResult.Failed(UserFailure(FailureKind.Protocol, details = "The server's host key is not trusted yet."))
+            is RemoteOutcome.Failed -> AuthorizeResult.Failed(outcome.failure)
+        }
 
     /** Pins the key the user just confirmed. Only called after an explicit tap on "Trust". */
     suspend fun trust(key: PinnedHostKey) {

@@ -26,7 +26,7 @@
     <string name="onboarding_username_title">Your pool username</string>
     <string name="onboarding_username_label">Pool username</string>
     <string name="onboarding_key_title">Your key</string>
-    <string name="onboarding_key_body">Pool Print made a key for this device. Add its public half to your pool account once. Log in to the pool (from a pool computer, or with your password over SSH from a laptop) and run:</string>
+    <string name="onboarding_key_body">Pool Print made a key for this device. Add its public half to your pool account once. Log in to the pool (from a pool computer, or with your password over SSH from a laptop) and run the commands below. If another device of yours already prints, you can instead copy the key and paste it there under Settings → Add a device.</string>
     <string name="onboarding_key_public_label">Public key</string>
     <string name="onboarding_key_copy_command">Copy command</string>
     <string name="onboarding_key_added">I added the key</string>
@@ -150,6 +150,14 @@
     <string name="settings_forget_confirm_title">Forget the pinned server key?</string>
     <string name="settings_forget_confirm_body">The next connection will ask you to trust the server again. Only do this if the pool admins announced a key change.</string>
     <string name="settings_forget_confirm_action">Forget key</string>
+    <string name="settings_add_device">Add another device</string>
+    <string name="settings_add_device_open">Add a device…</string>
+    <string name="settings_add_device_body">On the new device, open Pool Print and copy the public key it shows (onboarding, step "Your key"). Paste it here and this device adds it to your pool account, so there is no need to log in with a password.</string>
+    <string name="settings_add_device_label">Public key of the new device</string>
+    <string name="settings_add_device_invalid">That is not a Pool Print public key. It starts with ssh-ed25519.</string>
+    <string name="settings_add_device_action">Authorize</string>
+    <string name="settings_add_device_running">Adding the key…</string>
+    <string name="settings_add_device_done">Added %1$s. On that device, tap Test connection.</string>
     <string name="settings_regenerate">Regenerate key…</string>
     <string name="settings_regenerate_confirm_title">Regenerate the key?</string>
     <string name="settings_regenerate_confirm_body">Printing stops working until you add the new public key to your pool account. Remove the old line from ~/.ssh/authorized_keys.</string>

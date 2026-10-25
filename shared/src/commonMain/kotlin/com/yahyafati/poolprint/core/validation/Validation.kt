@@ -20,6 +20,7 @@ sealed interface ValidationError {
     data object TooManyPresets : ValidationError
     data object UsernameEmpty : ValidationError
     data object UsernameInvalid : ValidationError
+    data object PublicKeyInvalid : ValidationError
 }
 
 sealed interface Validated<out T> {

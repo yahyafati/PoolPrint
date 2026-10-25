@@ -82,8 +82,13 @@ stores the printer, layout options and changed discovered options, but no copies
 
 ### Settings
 
-Username · public key (copy/share) · regenerate key · host key (fingerprint, forget) · discovery
-(refresh, last updated) · default printer · about / licences.
+Username · public key (copy/share) · **add another device** · regenerate key · host key (fingerprint, forget) ·
+discovery (refresh, last updated) · default printer · about / licences.
+
+**Add another device:** each device has its own key (D-19). On the new device, onboarding shows its public key (Copy /
+Share). On a device that already prints, Settings → Add a device… takes that key pasted into a field and appends it to
+`authorized_keys` over the existing login; the new device then taps Test connection. Anything that isn't a plain
+`ssh-ed25519` key line is rejected before connecting.
 
 ## Error catalogue
 

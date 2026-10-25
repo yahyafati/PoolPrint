@@ -15,4 +15,10 @@ internal object Patterns {
     val JobId = Regex("^[0-9]{1,9}$")
 
     val PoolUsername = Regex("^[a-z0-9_][a-z0-9_.-]{0,31}$")
+
+    /**
+     * One `authorized_keys` line for an Ed25519 key: the type, the 68-character base64 blob (51 bytes, no padding,
+     * starting with the encoded type name) and an optional short comment. Nothing else is accepted.
+     */
+    val Ed25519KeyLine = Regex("^ssh-ed25519 (AAAAC3NzaC1lZDI1NTE5AAAA[A-Za-z0-9+/]{44})(?: ([A-Za-z0-9._@-]{1,64}))?$")
 }

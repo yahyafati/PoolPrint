@@ -2,8 +2,12 @@ package com.yahyafati.poolprint.ui
 
 import com.yahyafati.poolprint.app.AppDependencies
 import com.yahyafati.poolprint.core.model.PoolUsername
+import com.yahyafati.poolprint.core.model.PublicKeyLine
+import com.yahyafati.poolprint.core.validation.valueOrNull
 import com.yahyafati.poolprint.hostkeys.PinnedHostKey
+import com.yahyafati.poolprint.service.AuthorizeResult
 import com.yahyafati.poolprint.service.DiscoveryOutcome
+import com.yahyafati.poolprint.service.UserFailure
 import com.yahyafati.poolprint.transport.PoolServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +21,17 @@ enum class SettingsConfirm { None, ForgetHostKey, RegenerateKey }
 /** What the last manual "Refresh printers and options" did. */
 enum class DiscoveryRefresh { None, Running, Updated, Unavailable, NeedsTrust }
 
+/** The "Add another device" form: paste the new device's public key, then authorize it. */
+sealed interface AddDevice {
+    data object Closed : AddDevice
+    data class Form(val input: String = "", val invalid: Boolean = false) : AddDevice
+    data object Running : AddDevice
+    data class Added(val comment: String) : AddDevice
+    data class Failed(val failure: UserFailure) : AddDevice
+}
+
 data class SettingsState(
+    val addDevice: AddDevice = AddDevice.Closed,
     val username: PoolUsername? = null,
     val publicKey: String? = null,
     val hostKey: PinnedHostKey? = null,
@@ -64,6 +78,29 @@ class SettingsModel(private val deps: AppDependencies, private val scope: Corout
             }
             refresh()
             mutableState.update { it.copy(discoveryRefresh = result) }
+        }
+    }
+
+    fun openAddDevice() = mutableState.update { it.copy(addDevice = AddDevice.Form()) }
+    fun closeAddDevice() = mutableState.update { it.copy(addDevice = AddDevice.Closed) }
+
+    fun onAddDeviceInput(text: String) = mutableState.update { it.copy(addDevice = AddDevice.Form(text)) }
+
+    /** Validates the pasted key and appends it to `authorized_keys` over this device's own login. */
+    fun authorizeDevice() {
+        val form = mutableState.value.addDevice as? AddDevice.Form ?: return
+        val key = PublicKeyLine.parse(form.input).valueOrNull()
+        if (key == null) {
+            mutableState.update { it.copy(addDevice = form.copy(invalid = true)) }
+            return
+        }
+        mutableState.update { it.copy(addDevice = AddDevice.Running) }
+        scope.launch {
+            val next = when (val result = deps.services.authorizeDevice(key)) {
+                AuthorizeResult.Added -> AddDevice.Added(key.comment)
+                is AuthorizeResult.Failed -> AddDevice.Failed(result.failure)
+            }
+            mutableState.update { it.copy(addDevice = next) }
         }
     }
 

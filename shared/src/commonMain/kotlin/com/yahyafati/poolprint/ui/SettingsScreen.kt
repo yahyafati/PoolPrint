@@ -4,9 +4,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -14,6 +19,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import poolprint.shared.generated.resources.*
 
@@ -55,6 +61,8 @@ fun SettingsScreen(model: SettingsModel, onClose: () -> Unit) {
             DiscoveryRefresh.NeedsTrust -> Text(stringResource(Res.string.settings_discovery_trust))
             else -> Unit
         }
+        Text(stringResource(Res.string.settings_add_device), style = MaterialTheme.typography.labelLarge)
+        AddDeviceSection(state.addDevice, model)
         OutlinedButton(onClick = { model.ask(SettingsConfirm.RegenerateKey) }) { Text(stringResource(Res.string.settings_regenerate)) }
         Text(stringResource(Res.string.settings_about), style = MaterialTheme.typography.bodySmall)
     }
@@ -75,6 +83,45 @@ fun SettingsScreen(model: SettingsModel, onClose: () -> Unit) {
             onDismiss = model::cancelConfirm,
         )
         SettingsConfirm.None -> Unit
+    }
+}
+
+@Composable
+private fun AddDeviceSection(addDevice: AddDevice, model: SettingsModel) {
+    when (addDevice) {
+        AddDevice.Closed -> OutlinedButton(onClick = model::openAddDevice) { Text(stringResource(Res.string.settings_add_device_open)) }
+        is AddDevice.Form -> {
+            Text(stringResource(Res.string.settings_add_device_body))
+            OutlinedTextField(
+                value = addDevice.input,
+                onValueChange = model::onAddDeviceInput,
+                label = { Text(stringResource(Res.string.settings_add_device_label)) },
+                isError = addDevice.invalid,
+                supportingText = if (addDevice.invalid) { { Text(stringResource(Res.string.settings_add_device_invalid)) } } else null,
+                minLines = 2,
+                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = model::authorizeDevice, enabled = addDevice.input.isNotBlank()) {
+                    Text(stringResource(Res.string.settings_add_device_action))
+                }
+                TextButton(onClick = model::closeAddDevice) { Text(stringResource(Res.string.action_cancel)) }
+            }
+        }
+        AddDevice.Running -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CircularProgressIndicator()
+            Text(stringResource(Res.string.settings_add_device_running))
+        }
+        is AddDevice.Added -> {
+            Text(stringResource(Res.string.settings_add_device_done, addDevice.comment), color = MaterialTheme.colorScheme.primary)
+            TextButton(onClick = model::closeAddDevice) { Text(stringResource(Res.string.action_done)) }
+        }
+        is AddDevice.Failed -> {
+            FailureCard(addDevice.failure, onRetry = model::openAddDevice)
+            TextButton(onClick = model::closeAddDevice) { Text(stringResource(Res.string.action_cancel)) }
+        }
     }
 }
 

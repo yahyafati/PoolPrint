@@ -310,6 +310,25 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
 - Still not done: the `~/.ssh` key option (D-12). It is an M4 checklist line in the roadmap but was never a task;
   say if you want it built.
 
+## D-19 One key per device; adding a device from an authorized one
+
+**Status:** Accepted (2026-10-25).
+- **One key per device** stays: the private key never leaves the device's secure store (Keychain / Keystore). A lost
+  device is revoked by deleting its line from `authorized_keys`.
+- **Add device** (Settings) is the shortcut for the manual `echo … >> authorized_keys` step: paste the new device's
+  public key on a device that already works and the app appends it over its existing key login. Rejected
+  alternatives: exporting/importing the private key (breaks non-exportable storage) and a helper using the pool
+  password (breaks "no password auth ever").
+- **How:** a fixed command, `umask 077; mkdir -p ~/.ssh; chmod 700 ~/.ssh; cat >> ~/.ssh/authorized_keys;
+  chmod 600 ~/.ssh/authorized_keys`, with the key on stdin as a validated `PublicKeyLine` (see security.md). It
+  works in sh and csh login shells (checked locally).
+- **Trade-off:** a device that is logged in can now add keys, not only print. Anyone with a working device could
+  already run arbitrary commands over SSH by extracting its key, so this doesn't widen what a compromised
+  device can do; it only makes it possible from inside the app.
+- **Not deduplicated:** adding the same key twice appends a second identical line (harmless). The first device
+  still needs the manual step (or a pool computer).
+- **Not tested against the real server** (manual checklist in the roadmap).
+
 ---
 
 ## Open questions
