@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a Kotlin Multiplatform + Compose Multiplatform app targeting **Android** and **macOS desktop (JVM)**. It prints PDFs on the Uni Freiburg TF pool printers by running `lpr` over SSH on `login.informatik.uni-freiburg.de`, streaming the PDF into its stdin. The code is still the template (greeting sample); the design is fully documented in `docs/`.
+Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a Kotlin Multiplatform + Compose Multiplatform app targeting **Android** and **macOS desktop (JVM)**. It prints PDFs on the Uni Freiburg TF pool printers by running `lpr` over SSH on `login.informatik.uni-freiburg.de`, streaming the PDF into its stdin. Milestone 1 (MVP) is implemented; the design is documented in `docs/`, and `docs/roadmap.md` has the status.
 
 ## Read before working
 
@@ -34,6 +34,8 @@ Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a 
 - Desktop native installers (Dmg/Msi/Deb): `./gradlew :desktopApp:packageDistributionForCurrentOS`
 - Shared tests on JVM: `./gradlew :shared:jvmTest`
 - Shared tests on Android host (local JVM): `./gradlew :shared:testAndroidHostTest`
+- Standalone test SSH server for manual runs: `./gradlew :shared:runTestSshServer` (port 2222; the emulator reaches it at `10.0.2.2`)
+- macOS Keychain round-trip test (touches the real login keychain, off by default): `POOLPRINT_KEYCHAIN_TEST=1 ./gradlew :shared:jvmTest --tests '*MacKeychain*'`
 - Single test: `./gradlew :shared:jvmTest --tests "com.yahyafati.poolprint.SharedCommonTest"` (append `.methodName` for one method)
 
 No lint/formatter is configured beyond `kotlin.code.style=official`. Gradle configuration cache and build cache are enabled (`gradle.properties`), so build logic must stay configuration-cache compatible.
@@ -43,8 +45,9 @@ No lint/formatter is configured beyond `kotlin.code.style=official`. Gradle conf
 Three Gradle modules:
 
 - **`:shared`** — KMP library holding all app logic and UI. Entry composable is `App()` in `commonMain`. Uses the newer `com.android.kotlin.multiplatform.library` plugin (configured via `kotlin { android { ... } }`, not a separate `android {}` block). Targets: `jvm()` and `android`.
+  - `jvmCommonMain` — shared by Android and desktop: sshj `SshjClient`, BouncyCastle key generation, `buildAppDependencies`. Wired as a custom hierarchy group in `shared/build.gradle.kts`.
   - `commonMain` — shared code and Compose UI; resources live in `commonMain/composeResources` and are accessed through the generated `poolprint.shared.generated.resources.Res`.
-  - `androidMain` / `jvmMain` — platform `actual` implementations for `expect` declarations (e.g. `getPlatform()`). Platform-specific functionality (printing APIs will differ per OS) belongs behind `expect`/`actual` or interfaces here.
+  - `androidMain` / `jvmMain` — platform implementations (Android Keystore store, macOS Keychain via JNA, PDF pickers, DataStore setup). Platform-specific functionality (printing APIs will differ per OS) belongs behind `expect`/`actual` or interfaces here.
   - Tests: `commonTest` (runs on both targets), `jvmTest`, `androidHostTest`.
 - **`:androidApp`** — thin Android application shell; `MainActivity` just hosts `App()`.
 - **`:desktopApp`** — thin Kotlin/JVM Compose Desktop shell; `main.kt` opens a `Window` hosting `App()`. Main class `com.yahyafati.poolprint.MainKt`; macOS bundle id `com.yahyafati.poolprint`.

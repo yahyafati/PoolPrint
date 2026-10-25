@@ -3,8 +3,9 @@
 Print PDFs on the **Uni Freiburg TF computer-pool printers** from your Android phone or Mac in a few
 taps, without opening a terminal.
 
-> **Status: in development.** The repository is still the Kotlin Multiplatform template. The features
-> below are planned; see [docs/roadmap.md](docs/roadmap.md) for progress.
+> **Status: in development.** Milestone 1 (onboarding, test connection, share/pick a PDF, print with
+> printer and copies) is implemented and unit-tested, but not yet checked against the real pool server.
+> The other features below are planned; see [docs/roadmap.md](docs/roadmap.md) for progress.
 
 Pool Print wraps the pool's official SSH printing procedure:
 
@@ -64,7 +65,6 @@ You need a TF pool account and a way to log in to it **once** to install the key
 
 1. Open Pool Print and enter your pool username.
 2. The app generates an **Ed25519 key pair** and shows the public key. Tap **Copy** (or Share it to yourself).
-   On macOS you can instead pick an existing key from `~/.ssh`.
 3. Log in to your pool account and add the key:
    ```bash
    mkdir -p ~/.ssh && chmod 700 ~/.ssh
@@ -85,8 +85,8 @@ After onboarding, the app never asks for a password or passphrase again.
 
 Where the private key is kept:
 - **Android:** encrypted with a key held in the Android Keystore, and excluded from backups.
-- **macOS:** in the login Keychain (or the path to your chosen `~/.ssh` key, with its passphrase in the
-  Keychain). Unsigned builds may ask once after an update to allow Keychain access: choose **Always Allow**.
+- **macOS:** in the login Keychain (item "Pool Print"). Unsigned builds may ask once after an update to
+  allow Keychain access: choose **Always Allow**.
 
 To revoke access, delete the key's line from `~/.ssh/authorized_keys` on the pool account.
 
@@ -140,14 +140,15 @@ macOS will ask you to confirm opening it.
 ./gradlew :shared:testAndroidHostTest
 ```
 
-The tests use a fake SSH client and never contact the real pool server.
+The tests use a fake SSH client and an in-process SSH server on loopback; they never contact the real pool
+server. One extra test touches the macOS login keychain and only runs with `POOLPRINT_KEYCHAIN_TEST=1`.
 
 ## Project structure
 
 ```
 shared/        all app logic and Compose UI (Kotlin Multiplatform)
   commonMain     models, validation, command builder, cost estimator, parsers, UI
-  jvmCommonMain  SSH client (shared by Android and desktop)   [planned]
+  jvmCommonMain  SSH client (sshj), Ed25519 key generation (shared by Android and desktop)
   androidMain    Android Keystore, PDF page count, intents
   jvmMain        macOS Keychain, PDF page count, file handling
 androidApp/    thin Android shell (manifest, MainActivity, share target)

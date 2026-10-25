@@ -1,7 +1,13 @@
 # Architecture
 
-> Status: **planned**. The repository is still the Compose Multiplatform template. This document
-> describes the target design. Update it whenever the implementation diverges.
+> Status: **M1 implemented**; later milestones are still design. Update this document whenever the
+> implementation diverges.
+>
+> Where M1 differs from the sketches below: `service` (`PoolServices`, `ErrorCatalogue`) and `ui`
+> (`OnboardingModel`, `PrintModel`, `SettingsModel` plus the screens) exist as extra packages; the key
+> store, host-key store and settings are DataStore-backed in `commonMain`; `buildAppDependencies`
+> (`jvmCommonMain`) wires the real implementations for both platforms; `rememberPdfPicker` and
+> `rememberTextSharer` are `expect`/`actual` composables.
 
 ## Big picture
 
@@ -43,14 +49,15 @@ jvmTest / androidHostTest   platform-specific tests
 ```
 
 `jvmCommonMain` has to be wired up explicitly. The default hierarchy template has no
-"Android + JVM" group, so create one, either through a custom hierarchy template group or with
-`dependsOn` (androidMain → jvmCommonMain → commonMain, jvmMain → jvmCommonMain). Keep it
-configuration-cache compatible.
+"Android + JVM" group, so `shared/build.gradle.kts` adds one with `applyDefaultHierarchyTemplate { common {
+group("jvmCommon") { withJvm(); withCompilations { it.platformType == KotlinPlatformType.androidJvm } } } }`.
+(`withAndroidTarget()` doesn't match the new `com.android.kotlin.multiplatform.library` target, and manual
+`dependsOn` edges switch the default template off with a warning.)
 
 **Rule:** `commonMain` must not reference `java.*`, `android.*` or any SSH/PDF library. If something
 needs the platform, define an interface in `commonMain` and implement it lower down.
 
-## Package layout (target)
+## Package layout
 
 Root package: `com.yahyafati.poolprint`.
 
@@ -84,7 +91,12 @@ interface ByteSource : AutoCloseable {
 class RemoteCommand internal constructor(val value: String)
 
 interface SshClient {
-    suspend fun exec(command: RemoteCommand, stdin: ByteSource? = null): SshResult
+    suspend fun exec(
+        command: RemoteCommand,
+        stdin: ByteSource? = null,
+        onUploaded: (Long) -> Unit = {},          // bytes sent so far, for the progress bar
+        timeoutMs: Long = DEFAULT_TIMEOUT_MS,
+    ): SshResult
 }
 
 data class SshResult(val exitCode: Int, val stdout: String, val stderr: String)
@@ -92,7 +104,7 @@ data class SshResult(val exitCode: Int, val stdout: String, val stderr: String)
 sealed interface SshError {
     data object HostUnreachable : SshError         // DNS, no route, timeout on connect
     data object AuthRejected : SshError            // key not in authorized_keys
-    data class HostKeyUnknown(val fingerprint: String) : SshError   // first connect: ask user
+    data class HostKeyUnknown(val keyType: String, val fingerprint: String) : SshError   // first connect: ask user
     data class HostKeyChanged(val expected: String, val actual: String) : SshError  // loud warning
     data object Timeout : SshError
     data class Protocol(val message: String) : SshError
@@ -101,8 +113,9 @@ sealed interface SshError {
 
 - `exec` returns `SshResult` even when the exit code isn't 0. A non-zero exit is a remote failure that
   gets shown to the user with stderr, not a transport error.
-- Transport failures are reported as `SshError`, via a `Result`-like wrapper or a typed exception;
-  pick one and use it everywhere.
+- Transport failures are thrown as `SshException(SshError)` (D-10). `PoolServices` catches them once and
+  returns typed results with a `UserFailure` for the UI. One `SshClient` is created per operation
+  through an `SshClientFactory`.
 - `RemoteCommand` has an `internal` constructor, so the UI layer can't build a raw command string by
   accident.
 - `FakeSshClient` (in `commonTest`) records commands and stdin bytes and returns scripted results or

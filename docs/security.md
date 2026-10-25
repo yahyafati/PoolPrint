@@ -39,20 +39,23 @@ Out of scope: a fully compromised (rooted or jailbroken) device, and a compromis
 
 ### Android storage
 
-1. Generate an AES-256-GCM key in **AndroidKeyStore** (`PURPOSE_ENCRYPT | PURPOSE_DECRYPT`,
+1. (Implemented as `AndroidKeystorePrivateKeyStore`.) Generate an AES-256-GCM key in **AndroidKeyStore** (`PURPOSE_ENCRYPT | PURPOSE_DECRYPT`,
    `BLOCK_MODE_GCM`, `ENCRYPTION_PADDING_NONE`). It's non-exportable by design.
-2. Encrypt the serialised private key and store `iv + ciphertext` in app-private storage (`filesDir`).
-3. Exclude that file from Auto Backup and device transfer (`dataExtractionRules` / `fullBackupContent`).
-   The Keystore key isn't backed up anyway, so a restored blob would be useless.
+2. Encrypt the serialised private key and store `iv + ciphertext` in app-private storage, in
+   `noBackupFilesDir`.
+3. That directory is excluded from Auto Backup and device transfer, and the manifest sets
+   `allowBackup="false"`. The Keystore key isn't backed up anyway, so a restored blob would be useless
+   (decisions.md, D-11).
 4. The Keystore key is created **without** `setUserAuthenticationRequired`, so using it never
    prompts (A-11 in [decisions.md](decisions.md)). It's still bound to the device and can't be exported.
-5. Decrypt into memory only for the length of a connection, and zero byte arrays where practical.
+5. Decrypt into memory only for the length of a connection, and zero byte arrays where practical. sshj's
+   `loadKeys(String, …)` makes a `String` copy of the key that can't be zeroed; it is garbage-collected later (D-01).
 6. Possible later: an opt-in "require fingerprint to print" setting, off by default.
 
 ### macOS storage
 
 - **Default:** store the private key as a Keychain generic-password item (service `Pool Print`,
-  account `<user>@login.informatik.uni-freiburg.de`, not synchronisable). Access goes through JNA
+  account `ssh-ed25519-private-key@login.informatik.uni-freiburg.de`, not synchronisable). Access goes through JNA
   bindings to the Security framework ([decisions.md](decisions.md#d-04-macos-keychain-access)). The
   secret never goes on a command line, where other processes could see it. The login keychain is
   unlocked when the user logs in, so normal use doesn't prompt. Unsigned builds may ask once after an

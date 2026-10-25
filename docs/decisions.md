@@ -28,7 +28,7 @@ When a decision changes, update the entry and add a dated note. Don't delete his
 
 ## D-01 SSH library
 
-**Status:** Proposed. Decide after the M1 Android spike.
+**Status:** Accepted (2026-10-25): **sshj**. The spike ran on desktop JVM and the API 29 and API 35 emulators. The one thing still unverified is the real pool server's algorithms (M1 manual checklist).
 
 Candidates:
 - **`com.github.mwiede:jsch`:** an actively maintained JSch fork with a small dependency footprint.
@@ -39,6 +39,78 @@ Candidates:
 Spike criteria: generates and loads Ed25519 keys on Android API 29 and newer; exec with stdin
 streaming works; host-key callback can be customised; password and keyboard-interactive auth can be
 disabled; reasonable APK size; no reflection problems under R8.
+
+### Spike results
+
+Versions: sshj 0.41.2, JSch fork 2.28.8, BouncyCastle 1.86, test server Apache MINA SSHD 2.20.0.
+Both libraries were run through the same scenarios against a local MINA SSHD (Ed25519 host key):
+`echo ok`, non-zero exit with stderr, a 20 MB random stdin whose SHA-256 is checked on the server side,
+host-key rejection before authentication, and rejected-key-without-fallback.
+
+| Criterion | sshj | JSch fork |
+|---|---|---|
+| Desktop JVM, all 6 scenarios (`SshSpikeJvmTest`) | ✅ | ✅ |
+| Android API 29 and API 35 emulators, exec / stderr+exit / 20 MB stdin / host-key reject | ✅ (`DefaultConfig` and `AndroidConfig` both work) | ✅ |
+| Same, minified with R8 | ✅ with keep rules | ✅ with keep rules |
+| Ed25519 key generation | ✅ BouncyCastle lightweight API, no JCA provider (shared helper) | ✅ same key file loads |
+| Only `publickey` is ever tried | ✅ `authPublickey`; server saw no password or keyboard-interactive attempt, even after a rejection | ✅ `PreferredAuthentications=publickey`; same result |
+| Host-key callback | `HostKeyVerifier.verify(host, port, PublicKey)`; fingerprint computed from the key blob matches the server's `SHA256:…` | `HostKeyRepository.check(host, keyBytes)`; same |
+| Needs extra setup on Android | Replace the platform "BC" provider with the bundled one (process-wide) | Static `JSch.setConfig` routing Ed25519, XDH and ChaCha20 to the `com.jcraft.jsch.bc.*` classes (process-wide) |
+| Required R8 rules | `-keep class org.bouncycastle.** { *; }` | the same plus `-keep class com.jcraft.jsch.** { *; }` |
+| Jar size | 0.6 MB (+ BouncyCastle) | 0.7 MB (+ BouncyCastle) |
+
+Findings that matter for the real implementation:
+
+1. **Both need the bundled BouncyCastle on Android.** Android's own BC is repackaged as
+   `com.android.org.bouncycastle` (v1.68 on API 35, v1.61 on API 29; no JCA `Ed25519` generator on API 29) and has no Ed25519, so it doesn't clash with the
+   bundled `org.bouncycastle`: classes are loaded from the APK. The size cost is dominated by BC
+   (`bcprov` 7.2 MB, `bcpkix` 1.3 MB, `bcutil` 0.8 MB as jars), not by the SSH library. The blanket
+   `-keep` rule is the safe starting point; narrowing it is a later optimisation.
+2. **Pin the BC artifacts to one version.** sshj pulls BC 1.84 transitively. With only `bcprov` raised
+   to 1.86, the Android build fails on duplicate classes (`IANAObjectIdentifiers` in `bcprov` and
+   `bcutil`). Declaring `bcprov` and `bcpkix` at the same version fixes it.
+3. **Android packaging:** exclude `META-INF/LICENSE.md` (three BC jars ship it), and add the `INTERNET`
+   permission to the manifest.
+4. **R8 breaks both libraries without keep rules** (BC's provider tables and JSch's `Class.forName`
+   algorithm names are name-based). The failures were runtime errors, not build errors, so a release
+   build has to be tested on a device. Keep an R8-minified smoke test on the checklist.
+5. **Error classification:** neither library raises a typed exception for "host key rejected". The spike
+   matched message strings, which is fragile. The real client should record the verdict in the
+   verifier/repository callback (a flag) and map the exception from that. Same for `AuthRejected`.
+6. **Key generation** uses `Ed25519KeyPairGenerator` plus `OpenSSHPrivateKeyUtil` /
+   `OpenSSHPublicKeyUtil` from `bcprov`: no JCA provider is involved, and the OpenSSH-format output
+   loads in both libraries. The comment can't be embedded in the private key by these helpers; it
+   only goes on the public line.
+7. **Streaming:** a 20 MB upload took about 1 s on the API 29 emulator and 3.5 to 4 s on API 35 with both libraries (emulator timings, not representative). Closing
+   the exec channel's output stream sends EOF in sshj; JSch sends it when the input stream ends and
+   exposes completion only through `isClosed` polling.
+8. Clients may probe a public key before signing, so a server sees two `publickey` attempts per
+   connection. Tests must not assert "exactly one".
+
+Why sshj: the same result with less glue (no static config, explicit `authPublickey`, a callback that
+receives a `PublicKey`, streams and `join(timeout)` on the command), and it is actively maintained.
+Its extra dependency is `slf4j-api`, which prints nothing without a binding. JSch's advantages are
+only its smaller dependency list (BC is needed either way on Android) and a familiar API.
+
+**Not verified:**
+- **The real pool server.** Nobody here can reach it. Its key-exchange and host-key algorithms are
+  unknown; a server that only offers legacy algorithms would need `Config` changes. It stays on the
+  M1 manual checklist ("Test connection ✓").
+- A physical device. Also only the arm64 `google_apis` images were tried (API 29: `Pixel_6_API_29`).
+
+The throwaway spike code, the JSch dependency and the `r8spike` build type were removed after the
+decision. Kept: `TestSshServer` (jvmTest) and the BouncyCastle key generator and R8 keep rule. The real
+client is `SshjClient` (jvmCommonMain); its tests (`SshjClientTest`) run against `TestSshServer` and
+cover host-key unknown/changed, auth rejection without fallback, 20 MB streaming, timeout and cancel.
+For manual runs on the emulator, `./gradlew :shared:runTestSshServer` starts the same server on port
+2222 (reach it at `10.0.2.2`); the app's server address is fixed, so this needs a temporary code change.
+
+Implementation notes (M1):
+- Cancel and timeout: sshj's blocking I/O ignores coroutine cancellation, and a writer blocked on a
+  window the server never opens can't even be disconnected cleanly. `SshjClient` runs the upload on a
+  dedicated, interruptible thread and a watcher coroutine closes the socket on cancel or deadline.
+- sshj's `loadKeys(String, ...)` copies the private key into a `String`, which can't be zeroed. The
+  byte array is zeroed; the String copy lives until garbage collection.
 
 ## D-02 PDF page counting
 
@@ -69,7 +141,8 @@ Rejected alternatives: the `security` CLI (passing the secret safely through it 
 over item attributes).
 
 Item attributes: generic password, service `Pool Print`, account
-`<user>@login.informatik.uni-freiburg.de`, not synchronisable (no iCloud Keychain).
+`ssh-ed25519-private-key@login.informatik.uni-freiburg.de` (the key belongs to the device, not to a
+username, so it doesn't change when the username does), not synchronisable (no iCloud Keychain).
 
 **Prompts (A-11):** the login keychain is unlocked when the user logs in, and an item created by the
 app can be read by the same app without a prompt. Known caveat: the item's access list is tied to the
@@ -77,12 +150,20 @@ app's code signature. With unsigned or ad-hoc-signed builds, macOS may ask **onc
 update** to allow access ("Always Allow" fixes it). Signing the `.dmg` consistently (M4) removes this.
 Note it in the README.
 
+**Implemented and checked (2026-10-25):** `MacKeychainPrivateKeyStore` (jvmMain). Its round-trip test
+(save, load, overwrite, delete) runs only with `POOLPRINT_KEYCHAIN_TEST=1` because it touches the real
+login keychain (service `Pool Print (test)`, deleted afterwards). It passed once on the owner's Mac
+without any prompt when run from Gradle's JVM. Whether the packaged app prompts after an update is
+still on the M4 checklist.
+
 ## D-05 Kotlin / Compose / Gradle versions
 
-**Status:** Open. Check at the start of M1.
-The template currently has Kotlin 2.4.20, Compose Multiplatform 1.12.1, AGP 9.4.1, Gradle 9.6.0 and
-Material3 `1.12.0-alpha03`. Check these against the latest **stable** releases. Material3 is an alpha,
-so a stable version is preferred if one is compatible.
+**Status:** Accepted and done (2026-10-25). Checked against the latest stable releases:
+Kotlin 2.4.20 → **2.4.21**, Compose Multiplatform 1.12.1 → **1.12.2**, Gradle 9.6.0 → **9.8.2**
+(the wrapper's `distributionSha256Sum` was updated from the checksum published at services.gradle.org),
+AGP 9.4.1 (already the latest). Coroutines 1.11.0 is the latest. `org.jetbrains.compose.material3` stays at
+**1.12.0-alpha03**: the newest stable release (1.9.0) is older than Compose 1.12 and wasn't tried
+against it; revisit when a 1.12+ stable ships.
 
 ## D-06 Billing unit for duplex
 
@@ -114,6 +195,32 @@ The CUPS docs say `page-ranges` selects **output** pages (after `number-up`). Th
 
 **Status:** Proposed. Use one connection per operation in M1 and revisit if latency bothers users.
 
+## D-10 Transport errors are exceptions
+
+**Status:** Accepted (2026-10-25). `SshClient.exec` returns `SshResult` for anything the remote command
+did (including a non-zero exit) and throws `SshException(SshError)` for transport failures. The
+services (`PoolServices`) catch it once and return typed results (`TestConnectionResult`,
+`PrintResult`) with a `UserFailure` that maps to the error catalogue. `SshError.HostKeyUnknown` also
+carries the key type.
+
+## D-11 Android storage and backup
+
+**Status:** Accepted (2026-10-25). The encrypted key and the DataStore file live in `noBackupFilesDir`,
+and the manifest sets `allowBackup="false"`. After a restore the app starts clean instead of holding a
+key blob whose Keystore key is gone. If the Keystore key is lost anyway, loading returns null and
+`KeyManager.ensureKey` generates a new key.
+
+## D-12 Scope cuts in M1
+
+**Status:** Accepted (2026-10-25).
+- macOS "use an existing `~/.ssh` key" is not implemented in M1 (the roadmap says "Keychain or an
+  `~/.ssh` path"); it stays with the M4 checklist.
+- Only `content://` URIs are accepted from the Android share intent, never `file://`, so another app
+  can't make Pool Print read its private files.
+- No page counting or cost in M1 (M2): the Print button just says "Print".
+- Android handles configuration changes itself (`configChanges` in the manifest), so the picked
+  document survives rotation; process death drops it.
+
 ---
 
 ## Open questions
@@ -128,6 +235,12 @@ Questions for the owner that block or shape later work:
 4. **Budget:** `lpquota` reportedly doesn't work and the budget page is intranet-only. Should the app try
    `lpquota` and show the result when it works, or leave budget out completely?
 
+5. **Host key seen from the emulator** (not verified, do not treat as authentic): during M1 testing,
+   `login.informatik.uni-freiburg.de` answered from this Mac's network with `ssh-ed25519`
+   `SHA256:N0jIYeTuFtSpa91Wy71QcDY//4HvPgh6XFfSNfb08f0`. Compare it with `ssh-keygen -lF` from a trusted
+   machine. This also shows the server offers an Ed25519 host key, which the client prefers. The app
+   did **not** pin it (trust was declined) and sent no credentials.
+
 Answered on 2026-10-25: off-campus access needs VPN (A-12); libraries are allowed as needed (A-10);
 persistence (D-03) and Keychain (D-04) were decided by the implementer; rename everything (D-08).
 
@@ -139,12 +252,13 @@ All non-template dependencies, planned or added. Update this table whenever `lib
 
 | Library | Scope | Purpose | Status |
 |---|---|---|---|
-| SSH library (JSch fork or sshj, see D-01) | `jvmCommonMain` | SSH exec, Ed25519 keys | Planned (M1) |
-| BouncyCastle (`bcprov`), if the SSH library needs it | `jvmCommonMain` | Ed25519 on Android | Planned (M1, decided by the spike) |
-| `kotlinx-coroutines-core` / `-test` | common / tests | Async SSH calls, flow tests | Planned (M1) |
-| AndroidX DataStore (KMP) | `commonMain` | Settings, presets, caches, host-key pins | Planned (M1) |
-| `kotlinx-serialization-json` (+ plugin) | `commonMain` | Structured persisted values | Planned (M1) |
-| JNA | `jvmMain` | macOS Keychain access | Planned (M1) |
+| `com.hierynomus:sshj` 0.41.2 (D-01) | `jvmCommonMain` | SSH exec | Added (M1) |
+| BouncyCastle `bcprov` + `bcpkix` 1.86 (keep versions equal) | `jvmCommonMain` | Ed25519 key generation (lightweight API) and signatures on Android and desktop | Added (M1) |
+| `kotlinx-coroutines-core` / `-test` 1.11.0 | common / tests | Async SSH calls, flow tests | Added (M1) |
+| AndroidX DataStore `datastore-preferences-core` 1.3.0 | `commonMain` | Username, public key, host-key pins (later: options, presets, caches) | Added (M1) |
+| `kotlinx-serialization-json` 1.12.0 (+ plugin) | `commonMain` | Structured persisted values (host-key pins) | Added (M1) |
+| `androidx.activity:activity-compose` (already in the template catalog) | `androidMain` | `OpenDocument` picker | Added (M1) |
+| JNA 5.19.1 | `jvmMain` | macOS Keychain access | Added (M1) |
 | Apache PDFBox | `jvmMain` | Page counting on desktop | Planned (M2) |
-| Apache MINA SSHD | tests only | In-process SSH server for testing the real `SshClient` | Planned (M1) |
+| Apache MINA SSHD `sshd-core` 2.20.0 (+ `bcpkix`, `slf4j-simple`) | `jvmTest` only | In-process SSH server for testing the real `SshClient`; also run standalone for the emulator | Added (M1) |
 | Robolectric | Android host tests | Keystore and PdfRenderer tests, if needed | Optional |

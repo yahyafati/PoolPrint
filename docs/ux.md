@@ -28,9 +28,10 @@ Android and macOS. Desktop gets a wider layout, not a different flow.
    > chmod 600 ~/.ssh/authorized_keys
    > ```
    Offer a **Share** action too, so the user can send the key to themselves.
-4. **Verify server:** the first connection shows the host-key fingerprint and asks the user to accept
-   it (see [security.md](security.md#host-key-verification-tofu)).
-5. **Test connection:** runs `echo ok` and shows ✓ or a catalogue error. On success, "Done".
+4. **Test connection (with host-key verification):** runs `echo ok`. On the first connection it stops
+   before authenticating and shows the host-key fingerprint; the user taps **Trust this server** (see
+   [security.md](security.md#host-key-verification-tofu)) and the test runs again. It ends with ✓ or a
+   catalogue error, and on success **Finish setup**.
    A short note above the button: "Off campus you need to be connected to the university VPN."
 
 After onboarding, nothing asks for a password or passphrase again (A-11).
@@ -97,6 +98,8 @@ Maps `SshError` and remote failures to user messages. Exact strings live in Comp
 | Exit ≠ 0, stderr mentions an unknown printer | "The printer `<name>` doesn't exist on the server. Refresh printers or pick another." | Refresh |
 | Exit ≠ 0, stderr mentions quota or budget | "Your print budget may be used up. Check it on the pool CUPS page (intranet)." | n/a |
 | Exit ≠ 0, other | "Printing failed (exit code N)." + stderr in Details | Retry |
+| Test connection command fails (exit ≠ 0) | "The server returned an error (exit code N)." + stderr in Details | Retry |
+| Test connection prints something other than `ok` | "The server answered, but not as expected. Is this the right server?" | Retry |
 | `lpr` not found | "The print command isn't available on this server." | Details |
 | Validation error | An inline message on the field, e.g. "Page ranges look like `1-4,7`." | n/a |
 | Discovery failed | A small hint, "Using default printer settings." (not an error) | Refresh |

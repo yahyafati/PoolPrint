@@ -37,6 +37,8 @@ Rules for anyone working on this repo: human contributors and AI coding agents. 
 | Shared tests (JVM) | `./gradlew :shared:jvmTest` |
 | Shared tests (Android host) | `./gradlew :shared:testAndroidHostTest` |
 | One test class | `./gradlew :shared:jvmTest --tests "com.yahyafati.poolprint.core.command.LprCommandBuilderTest"` |
+| Standalone test SSH server (emulator at `10.0.2.2:2222`) | `./gradlew :shared:runTestSshServer` |
+| macOS Keychain test (touches the real login keychain) | `POOLPRINT_KEYCHAIN_TEST=1 ./gradlew :shared:jvmTest --tests '*MacKeychain*'` |
 
 The configuration cache and build cache are on, so build logic must stay configuration-cache compatible.
 Versions live in `gradle/libs.versions.toml`; reference them through `libs.*`.

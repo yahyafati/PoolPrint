@@ -7,7 +7,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done (unit-tested) · 
 
 | Milestone | Status |
 |---|---|
-| M1 — MVP | ⬜ |
+| M1 — MVP | 🔶 |
 | M2 — Options & cost | ⬜ |
 | M3 — Discovery, presets, queue | ⬜ |
 | M4 — macOS polish | ⬜ |
@@ -22,23 +22,25 @@ readable result.
 ### Tasks
 
 - ✅ **Rename:** project `PoolPrint`, package `com.yahyafati.poolprint`, app name "Pool Print" (D-08).
-- ⬜ **Groundwork:** check and update Kotlin, Compose Multiplatform, AGP and Gradle to the current
-  stable versions; add the `jvmCommonMain` source set; add the M1 libraries from the dependency register.
-- ⬜ **SSH spike on Android (do this first):** add the chosen SSH library, generate an Ed25519 key, and
-  run `exec` against a local test SSH server from an Android emulator and from desktop. Watch for
-  BouncyCastle conflicts and missing EdDSA providers on Android. Record the outcome in
-  [decisions.md](decisions.md#d-01-ssh-library).
-- ⬜ Core models: `Printer` (hardcoded table), `PrinterType`, `PrintJob`, a minimal `PrintOptions`
+- ✅ **Groundwork:** Kotlin 2.4.21, Compose Multiplatform 1.12.2, Gradle 9.8.2, AGP 9.4.1 (D-05);
+  `jvmCommonMain` source set; M1 libraries added and registered.
+- ✅ **SSH spike on Android (do this first):** sshj accepted on desktop and the API 29 and 35 emulators
+  (D-01).
+- ✅ Core models: `Printer` (hardcoded table), `PrinterType`, `PrintJob`, a minimal `PrintOptions`
   (printer, copies).
-- ⬜ `ShellQuote` and `LprCommandBuilder` (printer, copies), plus injection tests.
-- ⬜ `SshClient` interface, `SshError`, `ByteSource`; the real implementation in `jvmCommonMain`;
-  `FakeSshClient` in `commonTest`.
-- ⬜ Host-key TOFU store and its UI.
-- ⬜ Key generation and secure storage: Android Keystore and macOS Keychain (or an `~/.ssh` path).
-- ⬜ Onboarding screens and **Test connection** (`echo ok`).
-- ⬜ Android: `ACTION_SEND` `application/pdf` intent filter and an in-app picker.
-- ⬜ Desktop: file picker (drag and drop comes in M4).
-- ⬜ Print flow: stream the PDF to `lpr` stdin; success or failure with readable stderr (error catalogue).
+- ✅ `ShellQuote` and `LprCommandBuilder` (printer, copies), plus injection tests.
+- ✅ `SshClient` interface, `SshError`, `ByteSource`; the real implementation in `jvmCommonMain`
+  (`SshjClient`); `FakeSshClient` in `commonTest`.
+- ✅ Host-key TOFU store and its UI (trust prompt, full-width changed-key warning, Settings → forget
+  with a second confirmation).
+- ✅ Key generation and secure storage: Android Keystore and macOS Keychain. (The `~/.ssh` path option
+  is deferred, D-12.)
+- ✅ Onboarding screens and **Test connection** (`echo ok`).
+- 🔶 Android: `ACTION_SEND` `application/pdf` intent filter and an in-app picker (built, not yet
+  driven from another app).
+- 🔶 Desktop: file picker (AWT `FileDialog`; built, the dialog itself not yet driven; drag and drop comes in M4).
+- ✅ Print flow: stream the PDF to `lpr` stdin; success or failure with readable stderr (error
+  catalogue). Verified against a local test SSH server with a fake `lpr`; the real server is on the manual checklist.
 
 ### Acceptance criteria
 
@@ -46,7 +48,8 @@ readable result.
 - Every user-controlled field reachable in M1 has injection tests.
 - Flow tests with `FakeSshClient` cover success, `AuthRejected`, `HostKeyChanged`, and a non-zero exit with stderr.
 - No password prompt anywhere; password auth is disabled in the SSH config.
-- The app builds and launches on an Android emulator or device and on macOS.
+- The app builds and launches on an Android emulator or device and on macOS. *(Launched on the API 29
+  emulator through onboarding; started on macOS without errors.)*
 
 ### Manual test checklist (owner, against the real server)
 
@@ -63,6 +66,17 @@ readable result.
 - [ ] Printing again after restarting the app or rebooting the device: no password or passphrase prompt.
 - [ ] Large PDF (≥ 20 MB) uploads and prints; Cancel during upload stops the job.
 - [ ] Nothing is left in the pool home directory afterwards (`ls -la ~` unchanged).
+- [ ] Compare the fingerprint the app shows with `ssh-keygen -lF` (decisions.md, open question 5). The
+      real server may offer other host-key or key-exchange algorithms than the test server; if Test
+      connection fails with a protocol error, send the details text.
+- [ ] Android: share a PDF **from another app** and check that Pool Print opens its print sheet; also try
+      the in-app "Choose a PDF…" picker.
+- [ ] Android: rotate the phone on the print sheet; the document stays.
+- [ ] macOS: first launch creates a Keychain item "Pool Print"; no prompt on later launches.
+- [ ] macOS: "Choose a PDF…" opens the native file dialog and prints the chosen file.
+- [ ] Settings → Forget pinned key → confirm: the next connection asks to trust again.
+- [ ] If minification is ever enabled for release builds: install the release APK and run Test
+      connection (R8 broke SSH at runtime without the BouncyCastle keep rule).
 
 ---
 
