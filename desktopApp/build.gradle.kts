@@ -19,6 +19,11 @@ compose.desktop {
     application {
         mainClass = "com.yahyafati.poolprint.MainKt"
 
+        buildTypes.release.proguard {
+            // sshj, BouncyCastle and JNA load classes reflectively; shrinking them is not worth the risk for a personal app.
+            isEnabled.set(false)
+        }
+
         nativeDistributions {
             // macOS only for now (D-18); add Msi/Deb here if a Windows or Linux build is ever wanted.
             targetFormats(TargetFormat.Dmg)

@@ -29,6 +29,7 @@ Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a 
 
 ## Commands
 
+- `Makefile` wraps the common tasks (`make help`). Release is the default, `BUILD=debug` switches; `make install-phone` (adb), `make install-pc` (copies the app to `/Applications`), `make install` does both. Release Android builds are signed with the debug keystore; desktop release builds have ProGuard disabled (sshj/BouncyCastle/JNA use reflection).
 - Android debug APK: `./gradlew :androidApp:assembleDebug`
 - Desktop run: `./gradlew :desktopApp:run`
 - Desktop with hot reload: `./gradlew :desktopApp:hotRun --auto`

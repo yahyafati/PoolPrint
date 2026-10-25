@@ -38,6 +38,8 @@ android {
     }
     buildTypes {
         release {
+            // Personal-use app: sign release with the debug keystore so `installRelease` works without extra setup.
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
