@@ -197,14 +197,17 @@ sealed interface SshError {
 - Drag and drop needs no change for Explorer: it offers `DataFlavor.javaFileListFlavor` like Finder, which `filesIn`
   reads (🔶 checked by hand on Windows).
 
-### macOS desktop (`:desktopApp` + `jvmMain`)
+### Desktop: macOS and Windows (`:desktopApp` + `jvmMain`)
+
+One JVM app for both OSes; the OS-specific parts are the key store, data folder and file hand-over described above, the
+menu shortcuts, the packaging and the notes below. macOS items are marked as such, Windows items by their section.
 
 - File picker: AWT `FileDialog`, the native open panel on macOS (and on Windows). `FilenameFilter` is honoured on macOS
   only; on Windows `dialog.file = "*.pdf"` is what filters the dialog (`pickerFilePattern`). The result is re-checked
   with `isPdfFile` on both (`pickedPdf`), because a filter is only a hint.
 - Drag and drop onto the window: `PdfDropTarget` (Compose `dragAndDropTarget`, reads the AWT file list).
   It shows a hint while a file hovers and a short message when the drop holds no PDF.
-- "Open With": `java.awt.Desktop.setOpenFileHandler` and `CFBundleDocumentTypes` for `com.adobe.pdf`
+- macOS "Open With": `java.awt.Desktop.setOpenFileHandler` and `CFBundleDocumentTypes` for `com.adobe.pdf`
   (rank `Alternate`, so Preview stays the default) in the app's `Info.plist`, through
   `compose.desktop.application.nativeDistributions.macOS.infoPlist`. `main()` installs the handler before
   the window exists (macOS queues earlier open-file events until then).
@@ -217,11 +220,13 @@ sealed interface SshError {
 - Page count: Apache PDFBox (the allowed "PDF page-count library").
 - Private key: macOS Keychain through JNA and the Security framework, or a user-chosen existing key
   from `~/.ssh` (with its passphrase, if any, kept in the Keychain). See
-  [decisions.md](decisions.md#d-04-macos-keychain-access).
+  [decisions.md](decisions.md#d-04-macos-keychain-access). On Windows: Credential Manager (D-26, above).
 - Packaging: `.dmg` through `packageDmg` on macOS (M4, D-18); a per-user `.msi` through `packageMsi` / `packageReleaseMsi`
   on Windows (D-30; `desktopApp/build.gradle.kts`, fixed `upgradeUuid`, `PoolPrint.ico`). jpackage only builds the
-  format of the OS it runs on, so the Msi cannot be built on macOS (W4 builds it on a Windows runner, D-31). No PDF
-  file association on Windows (D-30). Code signing and notarisation are out of scope unless requested.
+  format of the OS it runs on, so the Msi cannot be built on macOS: the manual `.github/workflows/windows.yml` (D-31) runs
+  the JVM tests and `packageReleaseMsi` on `windows-latest` and uploads the unsigned Msi, which `scripts/release.sh build
+  --windows-msi` then adds to a release made on the Mac (checks, `PoolPrint-<version>-windows-x64.msi`, `SHA256SUMS.txt`;
+  [release.md](release.md#windows-the-msi-d-25d-31)). No PDF file association on Windows (D-30); unsigned (D-29). Code signing and notarisation are out of scope unless requested.
 
 ## State and persistence
 

@@ -1,8 +1,12 @@
 #!/bin/bash
 # Pool Print release script (docs/release.md, Phase 4). Run it through make:
 #
-#   make release         scripts/release.sh build   tests, signed APK, DMG, checks, checksums, notes draft
+#   make release         scripts/release.sh build [--windows-msi <file>]   tests, signed APK, DMG, checks, checksums, notes
 #   make release-draft   scripts/release.sh draft   a *draft* GitHub release with those files (gh)
+#   scripts/release.sh check-msi <file>             only the Msi checks, e.g. on a downloaded workflow artifact
+#
+# The Windows Msi can't be built on a Mac (jpackage, D-31): run the manual "Windows" workflow, download the Msi and pass it
+# with --windows-msi (make release WINDOWS_MSI=<file>). Without it the release is Android + macOS only, and says so.
 #
 # The version comes from gradle.properties (Phase 2). Output: build/release/<version>/.
 # Runs on the owner's Mac (D-22). Never prints signing values; Gradle reads them from local.properties itself.
@@ -18,6 +22,10 @@ MAC_ARCH=arm64 # D-22: Apple Silicon only
 MAC_APP_NAME="Pool Print.app"
 APK_BUILT=androidApp/build/outputs/apk/release/androidApp-release.apk
 DMG_BUILT_DIR=desktopApp/build/compose/binaries/main-release/dmg
+# A real Msi carries the bundled runtime (tens of MB); anything much smaller is an error page or a partial download.
+MSI_MIN_BYTES=10485760
+# The OLE/CFB header every .msi starts with (D0 CF 11 E0 A1 B1 1A E1), as `od -An -tx1` prints it, spaces removed.
+MSI_MAGIC=d0cf11e0a1b11ae1
 NOTES_TEMPLATE=scripts/release-notes.template.md
 # The line the owner deletes after reviewing the notes; `draft` refuses while it is there.
 NOTES_REVIEW_MARKER='<!-- Edit:'
@@ -35,6 +43,8 @@ die() {
 step() { printf '\n==> %s\n' "$*"; }
 info() { echo "    $*"; }
 
+# Set by `build --windows-msi <file>` (empty: no Windows file in this release).
+WINDOWS_MSI_SRC=
 MOUNT_DIR=
 cleanup() {
     if [ -n "$MOUNT_DIR" ]; then
@@ -59,6 +69,7 @@ read_version() {
     grep -Eq '^[1-9][0-9]*$' <<<"$VERSION_CODE" ||
         die "poolprint.versionCode in gradle.properties must be a whole number from 1, got '$VERSION_CODE'."
     MAC_VERSION=${VERSION%%-*}
+    WIN_VERSION=${VERSION%%-*} # buildSrc windowsPackageVersion: the same, without -rc.N
     TAG="v$VERSION"
     case "$VERSION" in
         *-rc.*) IS_RC=1 ;;
@@ -67,6 +78,7 @@ read_version() {
     OUT_DIR="build/release/$VERSION"
     APK_NAME="PoolPrint-$VERSION-android.apk"
     DMG_NAME="PoolPrint-$VERSION-macos-$MAC_ARCH.dmg"
+    MSI_NAME="PoolPrint-$VERSION-windows-x64.msi"
 }
 
 # --- Checks (each one stops the release) ------------------------------------------------------------------------
@@ -171,9 +183,43 @@ check_dmg() {
     MOUNT_DIR=
 }
 
+# check_msi <msi> [copy]: what can be checked without Windows. Not a regular .msi, a download that stopped early, an HTML error
+# page or a zip (the workflow artifact is zipped: unzip it first) all fail here. It can't tell a good Msi from a bad one:
+# installing it is on the Windows checklist (docs/release.md).
+check_msi() {
+    local msi=$1 base size magic named
+    local by_name=${2:-name} # "copy": the stable release name has no version to compare, the source name was checked
+    [ -f "$msi" ] || die "Msi not found: $msi"
+    base=$(basename "$msi")
+    case "$base" in
+        *.msi | *.MSI) ;;
+        *) die "Not an .msi file name: $base (if this is the workflow artifact, unzip it first)." ;;
+    esac
+    size=$(wc -c <"$msi" | tr -d '[:space:]')
+    [ "$size" -ge "$MSI_MIN_BYTES" ] ||
+        die "$base is only $size bytes; a real Msi is tens of MB. Incomplete download?"
+    magic=$(od -An -tx1 -N8 "$msi" | tr -d '[:space:]')
+    [ "$magic" = "$MSI_MAGIC" ] ||
+        die "$base doesn't start with the Windows Installer (OLE/CFB) header D0 CF 11 E0 A1 B1 1A E1; found: $magic"
+    if [ "$by_name" = copy ]; then
+        info "msi: $base, $size bytes, Windows Installer header"
+        return
+    fi
+    # The Compose plugin names it 'Pool Print-<MAJOR.MINOR.PATCH>.msi'. A different version means another commit's Msi.
+    named=$(sed -n 's/^.*-\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)\.[mM][sS][iI]$/\1/p' <<<"$base")
+    if [ -z "$named" ]; then
+        info "warning: can't read the version from the file name '$base'; make sure it was built from this commit (Msi version $WIN_VERSION)."
+    elif [ "$named" != "$WIN_VERSION" ]; then
+        die "$base looks like version $named, but gradle.properties says the Msi version is $WIN_VERSION. Build the Msi from this commit."
+    else
+        info "msi: $base, $size bytes, Windows Installer header, version $named matches"
+    fi
+}
+
 # --- Release files ----------------------------------------------------------------------------------------------
 
-# write_notes <file>: the template with the version, file names, certificate and the commits since the last release.
+# write_notes <file> <1 if a Windows Msi ships, else empty>: the template with the version, file names, certificate and the
+# commits since the last release.
 write_notes() {
     local out=$1 since range changes
     # In CI the tag being released already exists on HEAD; skip it so the notes start at the previous release.
@@ -188,15 +234,18 @@ write_notes() {
     git log --no-merges --reverse --pretty='- %s' "$range" >"$changes"
     [ -s "$changes" ] || echo "- …" >"$changes"
     # All substituted values are checked (version pattern, fixed names, hex digest, tag), so they are safe in awk.
-    awk -v version="$VERSION" -v apk="$APK_NAME" -v dmg="$DMG_NAME" -v cert="$RELEASE_CERT_SHA256" \
-        -v since="$since" -v rc="$IS_RC" -v changes="$changes" '
+    awk -v version="$VERSION" -v apk="$APK_NAME" -v dmg="$DMG_NAME" -v msi="$MSI_NAME" -v cert="$RELEASE_CERT_SHA256" \
+        -v since="$since" -v rc="$IS_RC" -v changes="$changes" -v win="$2" '
+        # Lines starting with {{WIN}} are kept (marker removed) only when a Windows Msi ships, {{NOWIN}} lines only when not.
+        index($0, "{{WIN}}") == 1 { if (!win) next; sub(/^\{\{WIN\}\}/, "") }
+        index($0, "{{NOWIN}}") == 1 { if (win) next; sub(/^\{\{NOWIN\}\}/, "") }
         $0 == "{{CHANGES}}" { while ((getline line < changes) > 0) print line; close(changes); next }
         $0 == "{{PRERELEASE_NOTE}}" {
             if (rc) { print ""; print "**Release candidate** for testing, published as a pre-release. Expect rough edges." }
             next
         }
         {
-            gsub(/\{\{VERSION\}\}/, version); gsub(/\{\{APK\}\}/, apk); gsub(/\{\{DMG\}\}/, dmg)
+            gsub(/\{\{VERSION\}\}/, version); gsub(/\{\{APK\}\}/, apk); gsub(/\{\{DMG\}\}/, dmg); gsub(/\{\{MSI\}\}/, msi)
             gsub(/\{\{CERT_SHA256\}\}/, cert); gsub(/\{\{SINCE\}\}/, since)
             print
         }' "$NOTES_TEMPLATE" >"$out"
@@ -205,9 +254,16 @@ write_notes() {
 }
 
 # stage_release_files <apk> <dmg> <commit> <step labels ×3>: build/release/<version>/ with the stable file names,
-# the notices, SHA256SUMS.txt and release-notes.md. Shared by `build` and `ci-package`.
+# the notices, SHA256SUMS.txt and release-notes.md. Shared by `build` and `ci-package`. A Windows Msi (WINDOWS_MSI_SRC)
+# is included when there is one; without it the release is Android + macOS only.
 stage_release_files() {
-    local apk=$1 dmg=$2 commit=$3 kept_notes=
+    local apk=$1 dmg=$2 commit=$3 kept_notes= win= sums
+    sums=("$APK_NAME" "$DMG_NAME")
+    if [ -n "$WINDOWS_MSI_SRC" ]; then
+        win=1
+        sums+=("$MSI_NAME")
+    fi
+    sums+=(THIRD_PARTY_NOTICES.md)
     step "$4 Copying the release files into $OUT_DIR"
     # Keep notes the owner already edited for this version; delete the file to regenerate it.
     if [ -f "$OUT_DIR/release-notes.md" ]; then
@@ -218,29 +274,51 @@ stage_release_files() {
     mkdir -p "$OUT_DIR"
     cp "$apk" "$OUT_DIR/$APK_NAME"
     cp "$dmg" "$OUT_DIR/$DMG_NAME"
+    if [ -n "$win" ]; then cp "$WINDOWS_MSI_SRC" "$OUT_DIR/$MSI_NAME"; fi
     cp THIRD_PARTY_NOTICES.md "$OUT_DIR/THIRD_PARTY_NOTICES.md"
     # Not uploaded: tells `draft` which commit these files come from (the tag goes there).
     echo "$commit" >"$OUT_DIR/.release-commit"
     # The copies are what ships, so check them again.
     check_apk "$OUT_DIR/$APK_NAME"
-    info "copied $APK_NAME, $DMG_NAME, THIRD_PARTY_NOTICES.md"
+    if [ -n "$win" ]; then check_msi "$OUT_DIR/$MSI_NAME" copy; fi
+    info "copied ${sums[*]}"
 
     step "$5 Writing SHA256SUMS.txt"
-    (cd "$OUT_DIR" && shasum -a 256 "$APK_NAME" "$DMG_NAME" THIRD_PARTY_NOTICES.md >SHA256SUMS.txt && sed 's/^/    /' SHA256SUMS.txt)
+    (cd "$OUT_DIR" && shasum -a 256 "${sums[@]}" >SHA256SUMS.txt && sed 's/^/    /' SHA256SUMS.txt)
 
     step "$6 Writing release-notes.md"
     if [ -n "$kept_notes" ]; then
         mv "$kept_notes" "$OUT_DIR/release-notes.md"
         info "kept your existing release-notes.md (delete it and rerun to regenerate)"
+        if [ -n "$win" ] && ! grep -qF "$MSI_NAME" "$OUT_DIR/release-notes.md"; then
+            info "warning: the kept release-notes.md doesn't mention $MSI_NAME; delete it and rerun to get the Windows rows and install steps."
+        elif [ -z "$win" ] && grep -qF "$MSI_NAME" "$OUT_DIR/release-notes.md"; then
+            info "warning: the kept release-notes.md mentions $MSI_NAME, but this release has no Msi; delete it and rerun."
+        fi
     else
-        write_notes "$OUT_DIR/release-notes.md"
+        write_notes "$OUT_DIR/release-notes.md" "$win"
         info "drafted from $NOTES_TEMPLATE with the commits since the last release"
     fi
 }
 
 cmd_build() {
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --windows-msi)
+                [ $# -ge 2 ] && [ -n "$2" ] || die "--windows-msi needs the path of the Msi."
+                WINDOWS_MSI_SRC=$2
+                shift 2
+                ;;
+            --windows-msi=*)
+                WINDOWS_MSI_SRC=${1#--windows-msi=}
+                [ -n "$WINDOWS_MSI_SRC" ] || die "--windows-msi needs the path of the Msi."
+                shift
+                ;;
+            *) die "unknown option for build: $1 (usage: $0 build [--windows-msi <file>])" ;;
+        esac
+    done
     read_version
-    echo "Pool Print release $VERSION (versionCode $VERSION_CODE, macOS package $MAC_VERSION, tag $TAG)"
+    echo "Pool Print release $VERSION (versionCode $VERSION_CODE, macOS/Windows package $MAC_VERSION, tag $TAG)"
 
     step "1/8 Checking the checkout"
     require_macos_arm64
@@ -251,6 +329,13 @@ cmd_build() {
     local commit
     commit=$(git rev-parse HEAD)
     info "commit $commit, tree clean, $TAG is new"
+    if [ -n "$WINDOWS_MSI_SRC" ]; then
+        # Before the long build: a wrong file should not cost ten minutes.
+        check_msi "$WINDOWS_MSI_SRC"
+        info "Windows Msi will be included; it must come from commit $commit (the workflow run's summary shows its commit)."
+    else
+        info "WARNING: no Windows Msi (--windows-msi). This release will be Android + macOS only."
+    fi
 
     step "2/8 Running every test suite (make test-all)"
     make --no-print-directory test-all
@@ -271,22 +356,40 @@ cmd_build() {
     echo "Done: $OUT_DIR"
     ls -l "$OUT_DIR" | sed '1d; s/^/    /'
     echo
+    if [ -z "$WINDOWS_MSI_SRC" ]; then
+        echo "NOTE: there is NO Windows file in this release. To add it: run the 'Windows' workflow on GitHub for commit $commit,"
+        echo "download the msi artifact, unzip it and run: make release WINDOWS_MSI=<path to the .msi>  (the Windows checks in"
+        echo "docs/release.md are the gate for it)."
+        echo
+    fi
     echo "Next: edit $OUT_DIR/release-notes.md (then delete its '$NOTES_REVIEW_MARKER …' line), push $commit, and run"
     echo "    make release-draft"
 }
 
 cmd_draft() {
     read_version
-    local commit pre=
+    local commit pre= assets
     [ -d "$OUT_DIR" ] || die "$OUT_DIR doesn't exist. Run 'make release' first."
     for f in "$APK_NAME" "$DMG_NAME" THIRD_PARTY_NOTICES.md SHA256SUMS.txt release-notes.md .release-commit; do
         [ -f "$OUT_DIR/$f" ] || die "$OUT_DIR/$f is missing. Run 'make release' again."
     done
     command -v gh >/dev/null || die "The GitHub CLI (gh) isn't installed: brew install gh"
     gh auth status >/dev/null 2>&1 || die "gh isn't logged in: gh auth login"
+    assets=("$OUT_DIR/$APK_NAME" "$OUT_DIR/$DMG_NAME")
+    # The Msi is optional; when `make release` copied one, it ships (and its checksum is in SHA256SUMS.txt).
+    if [ -f "$OUT_DIR/$MSI_NAME" ]; then
+        assets+=("$OUT_DIR/$MSI_NAME")
+    else
+        info "WARNING: no $MSI_NAME in $OUT_DIR; this draft will have no Windows download."
+    fi
+    assets+=("$OUT_DIR/THIRD_PARTY_NOTICES.md" "$OUT_DIR/SHA256SUMS.txt")
 
     step "Checking the release files"
     (cd "$OUT_DIR" && shasum -a 256 -c SHA256SUMS.txt | sed 's/^/    /') || die "Checksums don't match; run 'make release' again."
+    if [ -f "$OUT_DIR/$MSI_NAME" ]; then
+        grep -qF "  $MSI_NAME" "$OUT_DIR/SHA256SUMS.txt" || die "$MSI_NAME is not listed in SHA256SUMS.txt; run 'make release' again."
+        check_msi "$OUT_DIR/$MSI_NAME" copy
+    fi
     if grep -qF "$NOTES_REVIEW_MARKER" "$OUT_DIR/release-notes.md"; then
         die "Review $OUT_DIR/release-notes.md first, then delete its '$NOTES_REVIEW_MARKER …' line."
     fi
@@ -309,10 +412,16 @@ cmd_draft() {
     if [ -n "$IS_RC" ]; then pre=--prerelease; fi
     step "Creating the draft release $TAG${pre:+ (pre-release)}"
     gh release create "$TAG" --draft $pre --target "$commit" --title "Pool Print $VERSION" \
-        --notes-file "$OUT_DIR/release-notes.md" \
-        "$OUT_DIR/$APK_NAME" "$OUT_DIR/$DMG_NAME" "$OUT_DIR/THIRD_PARTY_NOTICES.md" "$OUT_DIR/SHA256SUMS.txt"
+        --notes-file "$OUT_DIR/release-notes.md" "${assets[@]}"
     echo
     echo "Draft created; only you can see it. Review it on GitHub and publish it there (that creates the tag $TAG)."
+}
+
+# check-msi <file>: the Msi checks of `build --windows-msi`, on their own (e.g. on a downloaded workflow artifact).
+cmd_check_msi() {
+    read_version
+    [ $# -eq 1 ] || die "usage: $0 check-msi <file.msi>"
+    check_msi "$1"
 }
 
 # --- CI (.github/workflows/release.yml, docs/release.md Phase 9) ------------------------------------------------
@@ -376,13 +485,14 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     cmd=${1:-}
     [ $# -eq 0 ] || shift
     case "$cmd" in
-        build) cmd_build ;;
+        build) cmd_build "$@" ;;
         draft) cmd_draft ;;
+        check-msi) cmd_check_msi "$@" ;;
         ci-check-tag) cmd_ci_check_tag "$@" ;;
         ci-check-apk) cmd_ci_check_apk "$@" ;;
         ci-check-dmg) cmd_ci_check_dmg "$@" ;;
         ci-package) cmd_ci_package "$@" ;;
         ci-draft) cmd_ci_draft ;;
-        *) die "usage: $0 build|draft (or: make release, make release-draft); ci-* commands are for the release workflow" ;;
+        *) die "usage: $0 build [--windows-msi <file>]|draft|check-msi <file> (or: make release, make release-draft); ci-* commands are for the release workflow" ;;
     esac
 fi

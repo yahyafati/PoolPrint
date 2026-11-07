@@ -4,6 +4,9 @@
 # `make release` (scripts/release.sh ci-*), then a *draft* GitHub release with the same files. Publishing stays a
 # manual click on GitHub. `make release` on the owner's Mac keeps working; use one or the other per version.
 #
+# Android + macOS only. The Windows Msi cannot be built here (D-31: the manual windows.yml workflow builds it); a
+# release that includes it goes through `make release WINDOWS_MSI=<file>` on the owner's Mac.
+#
 # The signing secrets live in the `release` environment (owner approval, `v*` tags only) and only reach the one step
 # that builds the APK. No Gradle cache is restored or saved here.
 name: Release

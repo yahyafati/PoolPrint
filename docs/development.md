@@ -42,6 +42,8 @@ Rules for anyone working on this repo: human contributors and AI coding agents. 
 | Build-logic tests (version parsing) | `./gradlew :buildSrc:test` (`make test-build`; `make test-all` runs every suite) |
 | Release files (tests, release-key APK, DMG, checks, checksums, notes) | `make release` → `build/release/<version>/` ([release.md, Phase 4](release.md#how-the-release-script-works)) |
 | Draft GitHub release from those files | `make release-draft` (needs `gh`; publishing stays manual) |
+| Release with a Windows Msi built elsewhere | `make release WINDOWS_MSI=<file.msi>` (`scripts/release.sh build --windows-msi`; [release.md, Windows](release.md#windows-the-msi-d-25d-31)) |
+| Windows Msi | `.\gradlew.bat :desktopApp:packageReleaseMsi` / `make msi`, Windows only; from a Mac use the manual `.github/workflows/windows.yml` (*Actions → Windows → Run workflow*, D-31) |
 | CI (GitHub Actions) | `.github/workflows/ci.yml`: every test suite on pushes to `main` and on PRs |
 | Release in GitHub Actions (optional) | push a tag `v<version>` → `.github/workflows/release.yml` makes a draft release ([release.md, Phase 9](release.md#phase-9-optional--automate-with-github-actions)) |
 | Windows Credential Manager test (touches the real store; Windows only) | `POOLPRINT_WINCRED_TEST=1 ./gradlew :shared:jvmTest --tests '*WindowsCredential*'` |

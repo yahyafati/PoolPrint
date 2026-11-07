@@ -12,7 +12,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done (unit-tested) · 
 | M3 — Discovery, presets, queue | 🔶 |
 | M4 — macOS polish | 🔶 |
 | R1 — First sideloaded GitHub release (v1.0.0) | 🔶 |
-| W1 — Windows desktop | 🟨 in progress, see [windows-port-roadmap.md](windows-port-roadmap.md) (W0 decisions done: D-25–D-31) |
+| W — Windows desktop port (W0–W4) | 🔶 (D-25–D-31; done and unit-tested on macOS, needs the checklist on a Windows PC) |
 
 ---
 
@@ -290,11 +290,192 @@ notes and a clear "vibe-coded, provided as is" notice. The phases, owner/agent s
 
 ---
 
-## W1 — Windows desktop (in progress, see windows-port-roadmap.md)
+## W — Windows desktop port
 
-**Goal:** the desktop app also runs on Windows x64, installed from an unsigned per-user Msi. The phases (W0–W4),
-tasks and the Windows manual checklist are in the temporary [windows-port-roadmap.md](windows-port-roadmap.md),
-which stays the working tracker until W4 is done and is then folded in here. Decisions: D-25–D-31.
+**Goal:** the desktop app also runs on Windows x64 (JVM), installed from an unsigned per-user Msi that is built on a
+manually started GitHub Actions `windows-latest` run and added to a normal `make release`. Decisions: D-25–D-31 in
+[decisions.md](decisions.md). Linux, Windows on ARM, the Microsoft Store and auto-update are out of scope. The desktop
+app runs on the JVM, so sshj, BouncyCastle, PDFBox, DataStore and the Compose UI needed no change; the macOS-only parts
+were the Keychain store, the data folder, "Open With", the menu shortcuts, the picker's filename filter, the
+`Dmg`-only packaging and the Mac-only `Makefile` and release script.
 
-- ✅ W0 — decisions and doc changes (2026-11-07).
-- 🔶 W1 — platform code (done on macOS, Windows checks pending) · 🔶 W2 — file hand-over (done and unit-tested on macOS, Explorer behaviour pending) · ⬜ W3 — Msi packaging · ⬜ W4 — build workflow, release tooling and gate.
+| Phase | Status |
+|---|---|
+| W0 — Decisions and doc changes | ✅ |
+| W1 — Platform code (key store, data folder, OS switch) | 🔶 |
+| W2 — File hand-over (picker, drop, Open With, single instance) | 🔶 |
+| W3 — Packaging (Msi) | 🔶 |
+| W4 — Build workflow, release tooling, release gate | 🔶 |
+
+All five are done in the repo and unit-tested on macOS; 🔶 means the Windows behaviour is not verified yet (no
+Windows machine was available to the agents): the owner's [checklist](#windows-manual-checklist-owner-on-windows) below
+is the gate. The port is complete in code, build tooling and docs once that checklist has been run on a Windows PC.
+
+### W0 — Decisions and doc changes ✅ (2026-11-07)
+
+- ✅ Lift the target restriction (D-25: amends A-01 and D-18); Project Overview and `CLAUDE.md` list Windows.
+- ✅ Key storage: Credential Manager (D-26). Data folder: `%LOCALAPPDATA%\Pool Print` (D-27; not the roaming `%APPDATA%`).
+- ✅ Single instance and file hand-over (D-28, protocol in [security.md](security.md#single-instance-and-file-hand-over-windows)).
+- ✅ Unsigned (D-29), Msi per-user (D-30), builds from a manual `windows-latest` workflow (D-31).
+- `jna-platform` pre-registered in the dependency register; [security.md](security.md) has the Windows key-storage and
+  single-instance sections. No code changed.
+
+### W1 — Platform code 🔶 (2026-11-07)
+
+- ✅ `DesktopOs` (`jvmMain/desktop`, `detect(osName)` / `current()`, `UnsupportedOsException`): macOS or Windows from
+  `os.name`; anything else makes `main()` print the message and exit with status 1. Tested with injected `os.name` values.
+- ✅ `WindowsCredentialPrivateKeyStore` (`jvmMain/keys`) implementing `PrivateKeyStore`: `load` returns `null` when nothing
+  is stored, `save` overwrites, `delete` is idempotent, buffers are zeroed, the secret never touches a command line or log.
+  **`jna-platform` 5.19.1 has no Credential Manager bindings**, so `CredReadW`/`CredWriteW`/`CredDeleteW`/`CredFree` and
+  `CREDENTIALW` are declared in the app (D-26 note); `jna-platform` supplies `FILETIME`, `WinError` and the error text. The
+  store logic (null when absent, overwrite, idempotent delete, 2560-byte limit) runs against an in-memory backend on every
+  OS; the structure layout is checked on macOS (80 bytes); the real calls are untested until Windows.
+- 🔶 Round-trip test against the real store, off by default like the Keychain one
+  (`POOLPRINT_WINCRED_TEST=1 ./gradlew :shared:jvmTest --tests '*WindowsCredential*'`), skipped on non-Windows.
+- ✅ `DesktopAppDependencies`: `desktopDataDir` / `desktopKeyStore` / `desktopHostName` take the OS (and home, env) as
+  arguments and are unit-tested on macOS; host-name fallback `pc` instead of `mac` (still filtered by `safeComment`).
+- 🔶 Menu shortcuts through `menuShortcut(os, key)` (⌘ on macOS, Ctrl on Windows, unit-tested). Whether the in-window menu
+  bar fits at the minimum window size (420 × 560) is not checked.
+- ✅ Strings: no user-facing string in `commonMain` mentions Mac, Finder, the Keychain or ⌘, so only the shortcuts needed
+  to become OS-aware; [ux.md](ux.md) and [architecture.md](architecture.md) now name both OSes.
+
+**Acceptance:** `:shared:jvmTest` passes on macOS **and** on Windows (the MINA SSHD transport tests run unchanged); the
+gated store test passes on Windows.
+
+### W2 — File hand-over 🔶 (2026-11-07)
+
+- 🔶 File picker: `pickerFilePattern(os)` gives `"*.pdf"` on Windows only (macOS would show it as a literal name); `pickedPdf`
+  re-checks the result with `isPdfFile`. A non-PDF chosen anyway (typing `*.*` in the Windows dialog) is ignored silently:
+  `rememberPdfPicker` has no rejection channel (it is a `commonMain` `expect` shared with Android).
+- ✅ `startDesktop(os, args, incoming)` (`jvmMain/desktop/DesktopStartup.kt`) runs first in `main(args)`: command-line files go
+  to `IncomingPdfs.offer` on every OS; on Windows it takes the `instance.lock` lock (`SingleInstance`, `FileChannel.tryLock`)
+  and starts the loopback listener, or, as a second instance, sends its first PDF and returns `StartupResult.Exit`, so `main`
+  exits before `application { … }` (no DataStore, key store or network). `main.kt` also raises the window when a document arrives.
+- 🔶 Protocol (`HandOver.kt`): `<token> <absolute path>\n`, 256-bit hex token, 8 KiB cap, 2 s per connection, one at a time,
+  constant-time compare, no replies, no logging. Endpoint file `instance.handover` (port + token), owner-only on POSIX,
+  inherited user-only ACL on Windows. Details: [security.md](security.md#single-instance-and-file-hand-over-windows).
+  **macOS does not use it** (LaunchServices already gives one process per app; D-28).
+- 🔶 Drag and drop from Explorer: no change (`javaFileListFlavor`, like Finder).
+- Tests: `HandOverTest` (27: protocol, listener, endpoint file, lock, two-instance hand-over) and `DesktopStartupTest` (9:
+  arguments, Windows hand-over, picker helpers). The lock was also checked across two real JVM processes on macOS. No new library.
+- Not verified without Windows: the lock between two real processes there, Explorer's Open With (cold and warm), the native
+  dialog filter, and `window.toFront()` against Windows' foreground rules (it may only flash the taskbar button).
+
+**Acceptance:** unit tests for argument handling and the hand-over protocol; drop and picker logic unchanged and still tested.
+
+### W3 — Packaging (Msi) 🔶 (2026-11-07)
+
+- ✅ `desktopApp/build.gradle.kts`: `targetFormats(Dmg, Msi)` and a `windows { … }` block: `PoolPrint.ico`, `menuGroup`,
+  `perUserInstall = true`, `shortcut = true`, `upgradeUuid` = `fdbbb4df-e57b-487c-af3b-a52341470e7f` (**never change it**, D-30),
+  `packageVersion`. On macOS the Msi tasks (`packageMsi`, `packageReleaseMsi`) are configured but skipped; `packageDmg` still builds.
+- ✅ `windowsPackageVersion` in `PoolPrintVersion` (`buildSrc`): `MAJOR.MINOR.PATCH` without `-rc.N`; the build fails with
+  the property name when MAJOR/MINOR > 255 or PATCH > 65535 (5 new tests; buildSrc has 11). **Consequence** (release.md, D-30):
+  `1.0.0-rc.1`, `-rc.2` and `1.0.0` are the same Msi version, so they do not upgrade each other; uninstall first when going from
+  an RC to the final release. Only a version bump upgrades in place.
+- ✅ **PDF file association dropped.** The Compose DSL's `fileAssociation(...)` registers the extension under jpackage's own ProgId
+  with no "Alternate rank" like macOS's `LSHandlerRank`, which could make Pool Print the default PDF app. The ways in on Windows are
+  Explorer **Open with → Choose another app → Pool Print.exe**, drag and drop, and Ctrl+O (D-30). Unverified (no Windows JDK here), so
+  the conservative choice was made.
+- ✅ Icon: `desktopApp/icons/make_icon.py` also writes `PoolPrint.ico` (16–256 px, a Windows variant that fills the canvas); the
+  macOS `.icns`, `PoolPrint.png` and the Android layers regenerate byte-identical.
+- 🔶 jlink modules: unchanged (`java.instrument`, `java.naming`, `java.security.jgss`, `java.sql`, `jdk.unsupported`); reasoned,
+  not run. The `suggestRuntimeModules` output of the Windows workflow settles it.
+- ✅ ProGuard stays off (same reasons as macOS).
+- Not verified without Windows: everything about the Msi (building it, per-user install without admin, shortcuts, icon,
+  upgrading, uninstalling, what jpackage does on an equal version, the install folder).
+
+**Acceptance:** `packageReleaseMsi` builds on Windows; installing, starting, upgrading over an older Msi and uninstalling all
+work without admin rights.
+
+### W4 — Build workflow, release tooling, release gate 🔶 (2026-11-07)
+
+- ✅ `.github/workflows/windows.yml` (`workflow_dispatch` only, D-31): `windows-latest`, same JDK (Zulu 21) and the same
+  SHA-pinned actions as `ci.yml`/`release.yml`, no secrets, read-only token. It validates the Gradle wrapper, runs
+  `:shared:jvmTest` (the MINA SSHD tests unchanged), builds `:desktopApp:packageReleaseMsi`, checks the Msi (exactly one,
+  ≥ 10 MB, OLE/CFB header), writes commit, size and SHA-256 to the run summary, runs `suggestRuntimeModules` (output in the
+  log, `continue-on-error`) and uploads the Msi as the `msi` artifact (14 days). It publishes nothing.
+- ✅ `Makefile`: `msi` (Windows only; elsewhere it explains the workflow and `make release WINDOWS_MSI=…`), `dmg` / `install-pc`
+  / `uninstall-pc` are macOS-only with a clear message before anything builds; `make release WINDOWS_MSI=<file>`; `make help`
+  updated.
+- ✅ `scripts/release.sh`: `build --windows-msi <file>` (and `check-msi <file>` on its own). Checks the file (`.msi` name, ≥ 10 MiB,
+  OLE/CFB magic, version in the name equals `windowsPackageVersion`) before the long build, copies it to
+  `build/release/<version>/PoolPrint-<version>-windows-x64.msi`, checks the copy, adds it to `SHA256SUMS.txt`. Without the flag
+  the release is Android + macOS only and the script says so (start and end). `make release-draft` attaches the Msi when present
+  and re-checks it. `release.yml` (Android + macOS) and the `ci-*` commands are unchanged on purpose: a Windows release goes
+  through `make release` (D-31).
+- ✅ `scripts/release-notes.template.md`: `{{WIN}}` / `{{NOWIN}}` lines: Windows row, **Windows install** steps (SmartScreen
+  *More info → Run anyway*, per-user install, Ctrl+O / drag / Open with → Choose another app, no file association, data in
+  `%LOCALAPPDATA%\Pool Print`, key in Credential Manager, update and RC → final uninstall rule) and a Windows known limitation;
+  the README → Install has a Windows paragraph.
+- ✅ [release.md](release.md) (Windows section: owner/agent split for getting the Msi, what the script can and cannot check, the
+  Windows gate), [architecture.md](architecture.md), `CLAUDE.md`, [development.md](development.md) updated.
+- Checked on macOS only: `bash -n`, the Msi checks against dummy files (good file, wrong version, too small, zip, no `.msi`
+  name, missing), staging and `SHA256SUMS.txt` with and without an Msi, the generated notes both ways, `draft` with a stub
+  `gh` (asset list with and without the Msi, a corrupted Msi refused), argument parsing, `make help` / `make msi`, YAML
+  parsing of the workflow. **Not run:** the workflow itself (agents never trigger workflows), WiX/jpackage, any real Msi.
+
+**Acceptance:** the owner can run the Windows workflow, download the Msi, run `make release WINDOWS_MSI=…` and get a draft
+release with the Msi, checksums and Windows install notes; the Windows gate passes.
+
+### Windows manual checklist (owner, on Windows)
+
+Build and release path (W4):
+- [ ] Run the workflow: *Actions → Windows → Run workflow* on the release commit. It finishes green: the JVM tests pass on
+      Windows, the Msi step finds one file, the artifact `msi` exists, the run summary shows the commit, size and SHA-256. Note
+      how long it takes, whether the Compose plugin's WiX 3.x download works there, and any Android-SDK-related message
+      (`:shared` configures the Android target; `windows-latest` normally has an SDK).
+- [ ] The log of *List the suggested jlink modules* (`suggestRuntimeModules`): if it lists a module beyond the five in
+      `desktopApp/build.gradle.kts`, add it (union with the macOS list). (W3)
+- [ ] Download the artifact, unzip it, `make release WINDOWS_MSI="…/Pool Print-<version>.msi"` on the Mac: the Msi checks pass,
+      `build/release/<version>/` has `PoolPrint-<version>-windows-x64.msi`, `SHA256SUMS.txt` lists it, `release-notes.md` has the
+      Windows row and install steps (fill the Windows known limitation); `make release-draft` attaches it to the draft.
+- [ ] The downloaded release asset's `Get-FileHash` equals its line in `SHA256SUMS.txt`.
+- [ ] Optional: `make msi` works on the Windows PC (needs `make` and a Git Bash-like shell; plain `.\gradlew.bat
+      :desktopApp:packageReleaseMsi` is the fallback).
+
+Install, start, uninstall (W3):
+- [ ] `desktopApp\build\compose\binaries\main-release\msi\Pool Print-<version>.msi` (or the artifact) exists and its version is the
+      numeric one (Properties → Details).
+- [ ] Fresh install from the Msi **without admin rights**: no UAC prompt, a Start-menu folder "Pool Print" and a desktop
+      shortcut with the lime icon (check 16/32/48 px in Explorer's views), the app starts, Settings → About shows the full version.
+- [ ] SmartScreen behaviour on first run is what the release notes describe (*More info → Run anyway*).
+- [ ] The installed app shows a page count for a real PDF (PDFBox in the jlinked runtime) and the key store works from the
+      packaged runtime (no `NoClassDefFoundError` / module error in a console run of `Pool Print.exe`).
+- [ ] Settings → Default apps → PDF is unchanged after installing and after uninstalling.
+- [ ] Install a newer Msi (higher `MAJOR.MINOR.PATCH`, e.g. 1.0.1 over 1.0.0) over the old one: it replaces it in place (one
+      entry in Settings → Apps), settings, presets, pinned host key and the device key survive.
+- [ ] Equal Msi version (an RC and its final release, or two rcs): note what happens (refused, repaired or a second
+      install). Documented workaround: uninstall first (release.md).
+- [ ] Uninstall (Settings → Apps, no admin prompt) removes the app and the shortcuts; expected: `%LOCALAPPDATA%\Pool Print`
+      data files and the Credential Manager entry stay (D-30). Note what actually happens, especially if the install folder is
+      the same `%LOCALAPPDATA%\Pool Print` (the data file must survive).
+- [ ] After uninstalling, installing the same Msi again works and the app is still onboarded.
+
+Onboarding and printing (release gate on Windows):
+- [ ] Onboarding → key generation → "Add it for me with my pool password" → trust the server (check the fingerprint) → Test
+      connection ✓. Restart: nothing asks for a password.
+- [ ] Credential Manager shows the Pool Print entry; Settings → regenerate key replaces it; deleting it in Control Panel makes
+      the app generate a new key (and asks to add it again) without crashing.
+- [ ] Print a PDF via Ctrl+O; the dialog lists PDFs only (typing `*.*` shows all; choosing a non-PDF then does nothing). (W2)
+- [ ] Drag a PDF from Explorer onto the window → print sheet; a non-PDF → "Only PDF files can be printed."
+- [ ] Right-click a PDF → Open with → Choose another app → Pool Print.exe (there is no file association in the Msi, D-30), with
+      the app **closed** (cold start: window opens with the print sheet for that PDF) and **open**, also minimised (no second window;
+      the running window comes to the front with the print sheet; if Windows only flashes the taskbar button, note it; Task Manager
+      shows one Pool Print process). The default PDF viewer is unchanged, and Pool Print is not in the "Open with" list before you
+      chose it. (W2)
+- [ ] Open a PDF from a path with spaces and non-ASCII characters (`C:\Users\…\Übung 3.pdf`) both ways. (W2)
+- [ ] Ctrl+P prints from the print sheet and is disabled elsewhere.
+- [ ] Page count of a real PDF is shown.
+
+Code checks on Windows (W1, W2):
+- [ ] `./gradlew :shared:jvmTest` passes on Windows (the workflow covers this once), and
+      `$env:POOLPRINT_WINCRED_TEST=1; ./gradlew :shared:jvmTest --tests '*WindowsCredential*'` passes (real Credential Manager:
+      write, read, overwrite, delete; the `CredentialW` structure and the three `Cred*W` calls are only exercised here).
+- [ ] `./gradlew :shared:jvmTest --tests '*HandOver*' --tests '*DesktopStartup*'` passes on Windows (real loopback sockets and the
+      real file lock; also part of the full run above).
+- [ ] The app starts from `./gradlew :desktopApp:run` on Windows; data lands in `%LOCALAPPDATA%\Pool Print`; the key comment is
+      `pool-print@<computer name>`.
+- [ ] Layout at the minimum window size with the in-window menu bar; dark mode; display scaling at 150 %.
+- [ ] End the running app, start it again: no stale-lock problem (the lock dies with the process); `instance.lock` and
+      `instance.handover` sit in `%LOCALAPPDATA%\Pool Print`, and `instance.handover` is gone after a normal exit.
+- [ ] Double-click the Start-menu shortcut while the app runs: nothing visible happens (the second copy exits quietly).

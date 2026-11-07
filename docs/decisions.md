@@ -444,7 +444,7 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
 ## D-25 Windows x64 desktop as a third target (Windows port)
 
 **Status:** Accepted (owner, 2026-11-07). Amends A-01 and D-18; the work is tracked in
-[windows-port-roadmap.md](windows-port-roadmap.md) (phases W0–W4, a temporary file until W4 is done).
+the "W — Windows desktop port" milestone in [roadmap.md](roadmap.md#w--windows-desktop-port) (phases W0–W4).
 - **Targets** are now Android, macOS desktop (arm64) and **Windows x64 desktop**, all on the JVM. The shared core
   still stays free of platform code (A-07); everything Windows-specific lives in `jvmMain` (key store, data folder,
   OS detection) and in `desktopApp` (packaging).
@@ -517,7 +517,7 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
 
 **Status:** Accepted (owner, 2026-11-07). The Windows counterpart of the macOS ad-hoc decision in D-22.
 - The Msi is **not Authenticode-signed**. SmartScreen shows "Windows protected your PC"; the user clicks *More info*
-  → *Run anyway*. The release notes will say so, with the steps (W4).
+  → *Run anyway*. The release notes say so, with the steps (W4: `scripts/release-notes.template.md`).
 - **Why:** a personal, sideloaded app (D-22) doesn't justify a certificate. Azure Trusted Signing (monthly fee) and
   an OV certificate (yearly cost, and SmartScreen reputation still has to build up) were considered. Revisit if
   users complain.
@@ -575,6 +575,15 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
 - The owner downloads the Msi from the run and passes it to the release script (`--windows-msi`, W4), so a Windows
   release still goes out through `make release` on the owner's Mac (D-22).
 - A local Windows PC or VM remains possible for manual testing. Agents still never push, tag or publish.
+- **W4 details (2026-11-07):** `.github/workflows/windows.yml` (`windows-latest`, Zulu 21, the same SHA-pinned actions as
+  the other workflows, `contents: read`, no secrets) runs `:shared:jvmTest`, builds `:desktopApp:packageReleaseMsi`, checks
+  the file (one `.msi`, ≥ 10 MB, OLE/CFB header), writes commit/size/SHA-256 to the run summary, prints
+  `suggestRuntimeModules` (not a gate) and uploads the Msi as the `msi` artifact for 14 days. `release.yml` stays Android +
+  macOS: a release with Windows goes through `make release WINDOWS_MSI=<file>` (`scripts/release.sh build --windows-msi`),
+  which checks the file, copies it as `PoolPrint-<version>-windows-x64.msi`, adds it to `SHA256SUMS.txt` and the notes, and
+  `make release-draft` attaches it. Without an Msi the release is Android + macOS only and says so. The release gate for
+  Windows is the owner's install on a Windows PC (release.md, "The Windows gate"); what the script can't see (that the Msi
+  installs, or that it was built from the release commit) stays on the checklist.
 - **Not verified here:** nothing in this environment can run the workflow or the Msi; both are on the manual
   checklist.
 
@@ -600,6 +609,13 @@ Questions for the owner that block or shape later work:
    **Answered 2026-11-07** (release gate, [release.md Phase 6](release.md#phase-6--test-the-candidate-release-gate)):
    on real devices, the fingerprint the app shows on first connect matches `ssh-keygen -lF
    login.informatik.uni-freiburg.de` from a trusted machine.
+
+6. **Windows port, unverified without a Windows PC** (2026-11-07, W1–W4; checklist in
+   [roadmap.md](roadmap.md#windows-manual-checklist-owner-on-windows)): the Credential Manager calls, the file lock and
+   hand-over between real processes, Explorer's Open With, the native dialog filter, whether `toFront()` is honoured, the Msi
+   itself (WiX download, per-user install, shortcuts, upgrade, equal-version behaviour, uninstall, install folder), the
+   `suggestRuntimeModules` list, and the Windows workflow (never run). Nothing about Windows is claimed to work until the
+   owner has run that checklist.
 
 Answered on 2026-10-25: off-campus access needs VPN (A-12); libraries are allowed as needed (A-10);
 persistence (D-03) and Keychain (D-04) were decided by the implementer; rename everything (D-08).

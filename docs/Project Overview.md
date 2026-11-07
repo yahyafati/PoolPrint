@@ -98,7 +98,7 @@ The full breakdown, with acceptance criteria and manual test checklists, is in [
 | **M2** | Options & cost | All standard options in the UI, local page count and cost estimate, remember last used printer and options |
 | **M3** | Power features | `lpoptions` discovery, saved presets, queue view and cancel own jobs |
 | **M4** | macOS polish | Drag and drop, "Open With", `.dmg` packaging |
-| **W1–W4** | Windows port (in progress) | Credential Manager key store, single instance and file hand-over, Msi, Windows build workflow; tracked in [windows-port-roadmap.md](windows-port-roadmap.md) |
+| **W0–W4** | Windows port | Credential Manager key store, single instance and file hand-over, unsigned per-user Msi, manual Windows build workflow and release tooling; see [roadmap.md](roadmap.md#w--windows-desktop-port) |
 
 ## Documentation map
 

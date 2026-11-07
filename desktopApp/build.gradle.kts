@@ -62,8 +62,8 @@ compose.desktop {
             // Numbers only on macOS (D-18): 1.0.0-rc.1 is packaged as 1.0.0; the app shows the full name.
             packageVersion = appVersion.macPackageVersion
             // From suggestRuntimeModules (run on macOS): the jlink runtime otherwise lacks what sshj and PDFBox reach
-            // for. Windows needs nothing more (docs/windows-port-roadmap.md, W3); the Windows run of
-            // suggestRuntimeModules is on the manual checklist.
+            // for. Windows needs nothing more (docs/roadmap.md, W3); the Windows run of
+            // suggestRuntimeModules (the Windows workflow prints it) is on the manual checklist.
             modules("java.instrument", "java.naming", "java.security.jgss", "java.sql", "jdk.unsupported")
             description = "Print PDFs on the Uni Freiburg TF pool printers"
             vendor = "Yahya Fati"
@@ -81,7 +81,7 @@ compose.desktop {
 
                 // No fileAssociation("application/pdf", "pdf", ...) here on purpose: jpackage registers it as the
                 // extension's own ProgId, with no "Open with only" rank like macOS's LSHandlerRank, so it could
-                // take over PDF from the user's viewer (D-30, docs/windows-port-roadmap.md W3). Explorer's
+                // take over PDF from the user's viewer (D-30, docs/roadmap.md W3). Explorer's
                 // "Open with → Choose another app" plus drag and drop are the Windows ways in.
             }
 
