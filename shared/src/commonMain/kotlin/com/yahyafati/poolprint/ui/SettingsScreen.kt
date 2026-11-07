@@ -21,7 +21,7 @@ import org.jetbrains.compose.resources.stringResource
 import poolprint.shared.generated.resources.*
 
 @Composable
-fun SettingsScreen(model: SettingsModel, onClose: () -> Unit) {
+fun SettingsScreen(model: SettingsModel, appVersion: String, onClose: () -> Unit) {
     val state by model.state.collectAsState()
     val addDevice = state.addDevice
     if (addDevice is AddDevice.Failed && addDevice.failure.kind == FailureKind.HostKeyChanged) {
@@ -143,7 +143,11 @@ fun SettingsScreen(model: SettingsModel, onClose: () -> Unit) {
 
             Section(stringResource(Res.string.settings_about_title))
             ListRow {
-                RowText(stringResource(Res.string.app_name), Modifier.weight(1f), subtitle = stringResource(Res.string.settings_about))
+                RowText(
+                    stringResource(Res.string.settings_about_version, appVersion),
+                    Modifier.weight(1f),
+                    subtitle = stringResource(Res.string.settings_about_disclaimer) + "\n" + stringResource(Res.string.settings_about),
+                )
             }
         }
     }

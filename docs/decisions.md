@@ -417,7 +417,7 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
 - **macOS `packageVersion`** is the `versionName` without the `-rc.N` suffix (macOS accepts only numbers, major
   ≥ 1, D-18). The full name is shown in Settings → About.
 - **One source** for both apps: `poolprint.versionName` and `poolprint.versionCode` in `gradle.properties`
-  (Phase 2).
+  (Phase 2), parsed and checked by `buildSrc/PoolPrintVersion.kt`; a malformed value fails the build.
 
 ---
 
@@ -459,4 +459,5 @@ All non-template dependencies, planned or added. Update this table whenever `lib
 | JNA 5.19.1 | `jvmMain` | macOS Keychain access | Added (M1) |
 | Apache PDFBox `pdfbox` 3.0.8 | `jvmMain` | Page counting on desktop (D-02) | Added (M2) |
 | Apache MINA SSHD `sshd-core` 2.20.0 (+ `bcpkix`, `slf4j-simple`) | `jvmTest` only | In-process SSH server for testing the real `SshClient`; also run standalone for the emulator | Added (M1) |
+| `kotlin-test` (Gradle's embedded Kotlin version) | `buildSrc` tests only | Tests for the version parsing (release Phase 2); not shipped | Added (R1) |
 | Robolectric | Android host tests | Keystore and PdfRenderer tests, if needed | Optional |

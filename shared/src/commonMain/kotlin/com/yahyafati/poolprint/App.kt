@@ -32,6 +32,8 @@ import com.yahyafati.poolprint.ui.SettingsScreen
 private enum class Overlay { None, Settings, Queue, Presets }
 
 /**
+ * @param appVersion the full version name ("1.0.0-rc.1") from gradle.properties, passed in by the app module
+ * (docs/release.md, Phase 2) and shown in Settings → About.
  * @param incomingDocument a PDF handed over by the platform (share sheet, Open With); [onIncomingHandled]
  * is called once it has been taken, so it isn't delivered twice. A document that arrives while a job is
  * being sent is dropped, so the sheet doesn't change under a running upload.
@@ -40,6 +42,7 @@ private enum class Overlay { None, Settings, Queue, Presets }
 @Composable
 fun App(
     deps: AppDependencies,
+    appVersion: String,
     incomingDocument: PdfDocumentSource? = null,
     onIncomingHandled: () -> Unit = {},
     commands: AppCommands = remember { AppCommands() },
@@ -74,7 +77,7 @@ fun App(
             }
             screen == Overlay.Settings -> {
                 val model = remember { SettingsModel(deps, scope) }
-                SettingsScreen(model, onClose = { screen = Overlay.None })
+                SettingsScreen(model, appVersion, onClose = { screen = Overlay.None })
             }
             screen == Overlay.Queue -> {
                 val model = remember { QueueModel(deps, scope) }

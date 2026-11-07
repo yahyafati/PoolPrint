@@ -42,7 +42,7 @@ Facts from the repo that shape this plan:
 |---|---|---|
 | [0](#phase-0--decisions) | ✅ Decide visibility, licence, versioning, macOS signing, architectures, release gate | 👤 |
 | [1](#phase-1--android-release-signing-key) | ✅ Create and back up the Android release key; wire it into Gradle | 👤 key · 🤖 Gradle |
-| [2](#phase-2--one-version-number) | One version source for both apps; show the version in Settings | 🤖 |
+| [2](#phase-2--one-version-number) | ✅ One version source for both apps; show the version in Settings | 🤖 |
 | [3](#phase-3--repository-ready-to-go-public) | Secret scan, licence, third-party notices, README install guide | 🤖 prepare · 👤 approve |
 | [4](#phase-4--release-script) | `make release`: tests, signed APK, DMG, checks, checksums, notes draft | 🤖 |
 | [5](#phase-5--release-candidate) | Build `v1.0.0-rc.1`, put it on a draft/pre-release | 👤🤖 |
@@ -193,25 +193,37 @@ was ever committed, and the only `poolprint.signing.*` lines are this guide's ex
 
 ## Phase 2 — One version number
 
-🤖 **Agent.**
+🤖 **Agent.** ✅ Done 2026-11-07.
 
-- [ ] Put the version in **one place**, the repo's `gradle.properties`:
+- [x] Put the version in **one place**, the repo's `gradle.properties`:
       ```properties
       poolprint.versionName=1.0.0-rc.1
       poolprint.versionCode=2
       ```
       (`versionCode` 1 is already taken by the debug builds on your phone.)
-- [ ] `androidApp`: `versionName` and `versionCode` from those properties.
-- [ ] `desktopApp`: `packageVersion` = `versionName` without the `-rc.N` suffix (macOS accepts only numbers). The full
+- [x] `androidApp`: `versionName` and `versionCode` from those properties.
+- [x] `desktopApp`: `packageVersion` = `versionName` without the `-rc.N` suffix (macOS accepts only numbers). The full
       name (with `-rc.N`) is still shown in the app (next point).
-- [ ] Show the version in **Settings → About** ("Pool Print 1.0.0-rc.1"), on both platforms, with the short
+- [x] Show the version in **Settings → About** ("Pool Print 1.0.0-rc.1"), on both platforms, with the short
       "vibe-coded, provided as is, no warranty" line from Phase 3 under it. Pass the version from the app
       modules into `App()` (or a small `expect`/`actual`) so `commonMain` stays platform-free; the label goes in
       Compose resources.
-- [ ] A unit test that the desktop version strips the suffix correctly.
-- [ ] Document the "how to bump the version" rule in this file's [patch routine](#patch-release-routine).
+- [x] A unit test that the desktop version strips the suffix correctly.
+- [x] Document the "how to bump the version" rule in this file's [patch routine](#patch-release-routine).
 
 **Done when:** changing the two properties changes the Android version, the `.dmg` version and the Settings label.
+
+**How it's built.** `buildSrc/src/main/kotlin/PoolPrintVersion.kt` reads and checks both properties
+(`MAJOR.MINOR.PATCH` or `MAJOR.MINOR.PATCH-rc.N`, `MAJOR ≥ 1`, no leading zeros; `versionCode` a whole number from 1);
+anything else fails the build with the property name. `macPackageVersion` drops the `-rc.N`. Its tests are
+`./gradlew :buildSrc:test`, part of `make test-all`. Android passes `BuildConfig.VERSION_NAME` into `App()`; the desktop
+build generates `BuildInfo.VERSION_NAME` (`:desktopApp:generateBuildInfo`), so the label is right under `run` and
+`hotRun` too. Settings → About shows "Pool Print <version>" with the vibe-coded line and the privacy line under it.
+
+Checked 2026-11-07: with the defaults the APK is `versionCode 2` / `versionName 1.0.0-rc.1` and the bundle and DMG
+are `1.0.0` (`Pool Print-1.0.0.dmg`); with `-Ppoolprint.versionName=1.2.3-rc.4 -Ppoolprint.versionCode=7` they become
+`7` / `1.2.3-rc.4`, `Pool Print-1.2.3.dmg` and `BuildInfo.VERSION_NAME = "1.2.3-rc.4"`; `0.9.0` fails the build.
+Not yet looked at on screen: the About row itself (👤 open Settings once on each platform).
 
 ---
 
@@ -432,7 +444,14 @@ Install steps: see the README → Install. Off campus you need the university VP
 For every later release (`1.0.1`, `1.1.0`, …):
 
 1. 🤖 Fix on a branch, tests green, merge to `main`.
-2. 🤖 Bump `poolprint.versionName` **and** `poolprint.versionCode` (+1, always; Android refuses equal or lower codes).
+2. 🤖 Bump the version in `gradle.properties`, nowhere else (Phase 2):
+   - `poolprint.versionCode`: **+1, always**, for every build that leaves your Mac, RCs and rebuilds of the same
+     version included. Android refuses an equal or lower code, so a code is never reused or lowered.
+   - `poolprint.versionName`: `PATCH` +1 for fixes (`1.0.1`), `MINOR` +1 and `PATCH` 0 for new features (`1.1.0`),
+     `MAJOR` +1 for breaking changes (e.g. a new onboarding). For a candidate append `-rc.1`, then `-rc.2`, …; the
+     final release drops the suffix (`1.1.0-rc.2` → `1.1.0`, with a new `versionCode`).
+   - macOS sees only `MAJOR.MINOR.PATCH`, so an RC and its final release share the `.dmg` version; the app's
+     Settings → About shows the full name.
 3. 👤 `make release` → `make release-draft` → review → Publish. Use an RC first when the change touches SSH,
    key storage, onboarding or command building (things only the real server can confirm).
 4. 👤 Smoke test the downloaded files (install over the previous version, print one page).

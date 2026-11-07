@@ -20,6 +20,9 @@ dependencies {
     debugImplementation(libs.compose.uiTooling)
 }
 
+// One version for both apps, from gradle.properties (docs/release.md, Phase 2; buildSrc/PoolPrintVersion.kt).
+val appVersion = PoolPrintVersion.from(providers)
+
 // Release signing (docs/release.md, Phase 1; D-22). The four `poolprint.signing.*` keys come from the root
 // `local.properties` (git-ignored), each falling back to its `POOLPRINT_SIGNING_*` environment variable (CI).
 // Gradle doesn't load `local.properties` itself, so it is read through `providers.fileContents`, which makes it a
@@ -72,8 +75,8 @@ android {
         applicationId = "com.yahyafati.poolprint"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersion.code
+        versionName = appVersion.name
     }
     packaging {
         resources {
@@ -109,6 +112,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // BuildConfig.VERSION_NAME is passed into App() for Settings → About.
+        buildConfig = true
     }
 }
 

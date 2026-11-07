@@ -35,6 +35,7 @@ No component talks to anything other than the pool login server.
 | `:shared` | KMP library holding **all** app logic and UI | Features go here |
 | `:androidApp` | Android application shell (manifest, `MainActivity`, intent handling glue) | Keep thin |
 | `:desktopApp` | Compose Desktop shell (`main.kt`, window, macOS packaging) | Keep thin |
+| `buildSrc` | Build logic only: `PoolPrintVersion` reads the app version from `gradle.properties` for both app modules | No app code |
 
 ## Source sets in `:shared`
 

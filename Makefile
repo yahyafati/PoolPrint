@@ -44,7 +44,7 @@ endif
 
 .DEFAULT_GOAL := help
 .PHONY: help all build android desktop dmg install install-phone install-pc install-apk uninstall-phone uninstall-pc \
-        launch-phone run-pc run-pc-dev hot-reload test test-android test-all ssh-server devices clean
+        launch-phone run-pc run-pc-dev hot-reload test test-android test-build test-all ssh-server devices clean
 
 help: ## Show this help
 	@echo "BUILD=$(BUILD)  (override with BUILD=debug)"
@@ -116,7 +116,10 @@ test: ## Shared tests on the JVM
 test-android: ## Shared tests on the Android host (local JVM)
 	$(GRADLE) :shared:testAndroidHostTest
 
-test-all: test test-android ## Run every test suite
+test-build: ## Build-logic tests (version parsing in buildSrc)
+	$(GRADLE) :buildSrc:test
+
+test-all: test test-android test-build ## Run every test suite
 
 ssh-server: ## Standalone test SSH server on port 2222 (emulator: 10.0.2.2)
 	$(GRADLE) :shared:runTestSshServer

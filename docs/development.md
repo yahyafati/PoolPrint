@@ -39,6 +39,7 @@ Rules for anyone working on this repo: human contributors and AI coding agents. 
 | Shared tests (Android host) | `./gradlew :shared:testAndroidHostTest` |
 | One test class | `./gradlew :shared:jvmTest --tests "com.yahyafati.poolprint.core.command.LprCommandBuilderTest"` |
 | Standalone test SSH server (emulator at `10.0.2.2:2222`) | `./gradlew :shared:runTestSshServer` |
+| Build-logic tests (version parsing) | `./gradlew :buildSrc:test` (`make test-build`; `make test-all` runs every suite) |
 | macOS Keychain test (touches the real login keychain) | `POOLPRINT_KEYCHAIN_TEST=1 ./gradlew :shared:jvmTest --tests '*MacKeychain*'` |
 
 **Release signing (Android).** `release` builds are signed with the release key when the four
@@ -47,6 +48,10 @@ are set, for CI); see [release.md](release.md#phase-1--android-release-signing-k
 back to the debug key and Gradle warns "Release APK is debug-signed, not for distribution": fine for your own
 devices, refused by the release script. A partial setup or a missing keystore file fails the build. Never print,
 log or commit the signing values; `*.jks`, `*.keystore` and `keystore.properties` are git-ignored.
+
+**Version.** The app version lives only in `gradle.properties` (`poolprint.versionName`, `poolprint.versionCode`);
+both app modules read it through `buildSrc/PoolPrintVersion.kt`. How to bump it:
+[release.md, patch routine](release.md#patch-release-routine).
 
 The configuration cache and build cache are on, so build logic must stay configuration-cache compatible.
 Versions live in `gradle/libs.versions.toml`; reference them through `libs.*`.

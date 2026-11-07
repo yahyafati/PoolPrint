@@ -30,7 +30,7 @@ fun main() {
             val pick = rememberPdfPicker(incoming::offer)
             PoolPrintMenuBar(commands, onOpenPdf = pick)
             PdfDropTarget(onFiles = { incoming.offer(it) }) {
-                App(deps, incomingDocument = pending, onIncomingHandled = { pending?.let(incoming::taken) }, commands = commands)
+                App(deps, appVersion = BuildInfo.VERSION_NAME, incomingDocument = pending, onIncomingHandled = { pending?.let(incoming::taken) }, commands = commands)
             }
         }
     }

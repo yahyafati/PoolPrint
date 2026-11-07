@@ -241,4 +241,8 @@ notes and a clear "vibe-coded, provided as is" notice. The phases, owner/agent s
 - ✅ Phase 1 — Android release signing key (2026-11-07): owner's keystore in `~/keys`, release signing from
   `local.properties` / `POOLPRINT_SIGNING_*` with a warned debug-key fallback, keystore files git-ignored,
   certificate SHA-256 `0260ccfe…a269` recorded in release.md, owner's phone switched to the release-key build.
-- ⬜ Phase 2 — one version number (next).
+- ✅ Phase 2 — one version number (2026-11-07): `poolprint.versionName` / `poolprint.versionCode` in
+  `gradle.properties` drive the Android version, the `.dmg` version (without `-rc.N`) and the Settings → About
+  label "Pool Print <version>" with the vibe-coded line; checked by `buildSrc` tests (`make test-build`).
+  Manual: 👤 open Settings → About once on Android and macOS and check the label reads "Pool Print 1.0.0-rc.1".
+- ⬜ Phase 3 — repository ready to go public (next).

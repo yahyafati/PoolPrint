@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
         val deps = createAndroidAppDependencies(this)
         incoming = pdfFrom(intent)
         setContent {
-            App(deps, incomingDocument = incoming, onIncomingHandled = { incoming = null })
+            App(deps, appVersion = BuildConfig.VERSION_NAME, incomingDocument = incoming, onIncomingHandled = { incoming = null })
         }
     }
 

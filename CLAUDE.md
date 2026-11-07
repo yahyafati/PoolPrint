@@ -37,6 +37,7 @@ Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a 
 - Desktop macOS installer: `./gradlew :desktopApp:packageDmg` (Dmg is the only target, D-18)
 - Shared tests on JVM: `./gradlew :shared:jvmTest`
 - Shared tests on Android host (local JVM): `./gradlew :shared:testAndroidHostTest`
+- Build-logic tests (version parsing): `./gradlew :buildSrc:test`; `make test-all` runs all three suites
 - Standalone test SSH server for manual runs: `./gradlew :shared:runTestSshServer` (port 2222; the emulator reaches it at `10.0.2.2`)
 - macOS Keychain round-trip test (touches the real login keychain, off by default): `POOLPRINT_KEYCHAIN_TEST=1 ./gradlew :shared:jvmTest --tests '*MacKeychain*'`
 - Single test: `./gradlew :shared:jvmTest --tests "com.yahyafati.poolprint.SharedCommonTest"` (append `.methodName` for one method)
@@ -45,15 +46,17 @@ No lint/formatter is configured beyond `kotlin.code.style=official`. Gradle conf
 
 ## Architecture
 
-Three Gradle modules:
+Three Gradle modules, plus `buildSrc`:
+
+- **`buildSrc`** — build logic only. `PoolPrintVersion` reads `poolprint.versionName` / `poolprint.versionCode` from `gradle.properties`, the single version source for both apps (docs/release.md, Phase 2); bump the version there, nowhere else.
 
 - **`:shared`** — KMP library holding all app logic and UI. Entry composable is `App()` in `commonMain`. Uses the newer `com.android.kotlin.multiplatform.library` plugin (configured via `kotlin { android { ... } }`, not a separate `android {}` block). Targets: `jvm()` and `android`.
   - `jvmCommonMain` — shared by Android and desktop: sshj `SshjClient`, BouncyCastle key generation, `buildAppDependencies`. Wired as a custom hierarchy group in `shared/build.gradle.kts`.
   - `commonMain` — shared code and Compose UI; resources live in `commonMain/composeResources` and are accessed through the generated `poolprint.shared.generated.resources.Res`.
   - `androidMain` / `jvmMain` — platform implementations (Android Keystore store, macOS Keychain via JNA, PDF pickers, DataStore setup). Platform-specific functionality (printing APIs will differ per OS) belongs behind `expect`/`actual` or interfaces here.
   - Tests: `commonTest` (runs on both targets), `jvmTest`, `androidHostTest`.
-- **`:androidApp`** — thin Android application shell; `MainActivity` just hosts `App()`.
-- **`:desktopApp`** — thin Kotlin/JVM Compose Desktop shell; `main.kt` opens a `Window` hosting `App()` with the menu bar, drop target and Open With inbox from `shared/jvmMain/.../desktop`. Main class `com.yahyafati.poolprint.MainKt`; macOS bundle id `com.yahyafati.poolprint`.
+- **`:androidApp`** — thin Android application shell; `MainActivity` just hosts `App()`, passing `BuildConfig.VERSION_NAME`.
+- **`:desktopApp`** — thin Kotlin/JVM Compose Desktop shell; `main.kt` opens a `Window` hosting `App()` (version from the generated `BuildInfo`) with the menu bar, drop target and Open With inbox from `shared/jvmMain/.../desktop`. Main class `com.yahyafati.poolprint.MainKt`; macOS bundle id `com.yahyafati.poolprint`.
 
 Keep the app modules thin; new features go in `:shared`.
 
