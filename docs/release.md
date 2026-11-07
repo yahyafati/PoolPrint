@@ -49,7 +49,7 @@ Facts from the repo that shape this plan:
 | [6](#phase-6--test-the-candidate-release-gate) | ✅ Install the downloaded RC on real devices; run the release gate | 👤 |
 | [7](#phase-7--publish-v100) | ✅ Tag and publish `v1.0.0` | 👤🤖 |
 | [8](#phase-8--after-the-release) | 🟨 Verify, update docs, patch-release routine (🤖 done; 👤 optional announcement) | 👤🤖 |
-| [9](#phase-9-optional--automate-with-github-actions) | *(optional)* Build releases in GitHub Actions | 🤖 workflow · 👤 secrets |
+| [9](#phase-9-optional--automate-with-github-actions) | 🟨 *(optional)* Build releases in GitHub Actions (workflows, `release` environment and secrets done; first real run pending) | 🤖 workflow · 👤 secrets |
 
 ---
 
@@ -597,20 +597,110 @@ For every later release (`1.0.1`, `1.1.0`, …):
 ## Phase 9 (optional) — Automate with GitHub Actions
 
 Worth it once releases become routine or you want an Intel build. Trade-off: your signing key then lives in GitHub
-secrets.
+secrets. Recorded as [D-24](decisions.md#d-24-github-actions-release-r1-phase-9).
 
-- [ ] 🤖 `.github/workflows/ci.yml`: on push/PR, `./gradlew :shared:jvmTest :shared:testAndroidHostTest` on
-      `ubuntu-latest`.
-- [ ] 🤖 `.github/workflows/release.yml`: on a pushed tag `v*`:
+🤖 part ✅ done 2026-11-07; 👤 the `release` environment and its secrets were set up the same day. Left: commit and
+push the workflows to `main`, then a first real run (ideally an RC). Until that run passes, `make release` stays the
+way to release.
+
+- [x] 🤖 `.github/workflows/ci.yml`: on push to `main` and on every PR, `./gradlew :shared:jvmTest
+      :shared:testAndroidHostTest :buildSrc:test` (all of `make test-all`) on `ubuntu-latest`, after Gradle's
+      wrapper-JAR validation. Test reports are uploaded when it fails. No secrets.
+- [x] 🤖 `.github/workflows/release.yml`: on a pushed tag `v*`:
   - Android job (`ubuntu-latest`): decode the keystore from a secret into the runner's temp dir, `assembleRelease`
     with `POOLPRINT_SIGNING_*` env vars, verify the certificate, upload the APK.
   - macOS job (`macos-latest`, arm64; add an Intel runner job if 0.5 says so): `packageReleaseDmg`, upload.
   - Release job: checksums, notices, **draft** release with all files. You still publish by hand.
-- [ ] 👤 Add repository secrets: `POOLPRINT_KEYSTORE_BASE64` (`base64 -i ~/keys/poolprint-release.jks | pbcopy`),
+- [x] 👤 Create the `release` environment and add its secrets ([setup below](#setting-up-the-release-environment)):
+      `POOLPRINT_KEYSTORE_BASE64` (`base64 -i ~/keys/poolprint-release.jks | pbcopy`),
       `POOLPRINT_SIGNING_STORE_PASSWORD`, `POOLPRINT_SIGNING_KEY_ALIAS`, `POOLPRINT_SIGNING_KEY_PASSWORD`. Protect them
-      with an environment (`release`) that requires your approval.
-- [ ] Note: on a **private** repo, macOS runner minutes count ×10 against the free quota; on a public repo standard
-      runners are free.
+      with the environment's required approval.
+      *(2026-11-07, checked with the GitHub API: environment `release` with `yahyafati` as required reviewer,
+      deployments limited to tags `v*`, the four secrets as environment secrets and none at repository level,
+      default workflow permissions read-only. Whether the values are right only shows in the first run.)*
+- [x] Note: on a **private** repo, macOS runner minutes count ×10 against the free quota; on a public repo standard
+      runners are free. *(The repo is public.)*
+
+### How the workflows work
+
+Both pin every action to a full commit SHA (version in a comment), use Zulu 21 like
+`gradle/gradle-daemon-jvm.properties`, and only read the repo by default (`contents: read`).
+
+**`ci.yml`** runs on pushes to `main` and on pull requests, forks included. It has no secrets. The wrapper
+validation matters because a changed `gradle-wrapper.jar` would later also run in the release workflow, next to the
+signing key. The Gradle cache comes from `actions/setup-java` (`cache: gradle`).
+
+**`release.yml`** runs on a pushed tag `v*` and reuses the checks of `make release` through `scripts/release.sh`
+`ci-*` commands, so both ways check the same things:
+
+1. **prepare** (`ubuntu-latest`): if a release for the tag already exists, everything else is skipped. That's the
+   case when you published a draft made by `make release-draft`: publishing creates the tag, which starts this
+   workflow. Otherwise `ci-check-tag` requires the tag to be `v<poolprint.versionName>` from `gradle.properties` and
+   its commit to be on `main`; then wrapper validation and every test suite.
+2. **android** (`ubuntu-latest`, environment `release`, waits for your approval): decodes the keystore into
+   `$RUNNER_TEMP` (mode 600), builds `:androidApp:assembleRelease` with the four `POOLPRINT_SIGNING_*` variables
+   (only that step sees the passwords; no configuration cache, so they aren't written to disk), deletes the keystore,
+   then `ci-check-apk`: release certificate, one signer, package name, `versionCode` and `versionName`. Uploads the
+   APK as a workflow artifact (kept 7 days).
+3. **macos** (`macos-latest`, Apple Silicon): `:desktopApp:packageReleaseDmg`, then `ci-check-dmg`: refuses a
+   non-arm64 runner, mounts the DMG and checks the bundle exactly like `make release` step 5. Uploads the DMG.
+4. **release** (`ubuntu-latest`, the only job that may write to the repo): `ci-package` writes
+   `build/release/<version>/` like `make release` steps 6–8 (stable names, the APK checked again, notices,
+   `SHA256SUMS.txt`, `release-notes.md` from the template with the commits since the last final release, skipping
+   the tag being released), then `ci-draft` refuses if any release for the tag exists (drafts included) and runs
+   `gh release create v<version> --draft [--prerelease] --verify-tag` with the same four files as `make release-draft`.
+
+No Gradle cache is restored or saved in `release.yml`: a release build shouldn't depend on, or leave anything in, a
+cache that other workflow runs share.
+
+### Setting up the release environment
+
+👤 Once, on GitHub (*Settings* of `yahyafati/PoolPrint`):
+
+1. *Environments → New environment* → name it `release`.
+2. *Required reviewers*: add yourself, and leave *Prevent self-review* unticked (you are the only reviewer).
+3. *Deployment branches and tags → Selected branches and tags → Add rule* → type **Tag**, pattern `v*`.
+4. *Environment secrets → Add secret*, four times (environment secrets, not repository secrets, so only the approved
+   Android job can read them):
+
+   | Secret | Value |
+   |---|---|
+   | `POOLPRINT_KEYSTORE_BASE64` | `base64 -i ~/keys/poolprint-release.jks \| pbcopy`, then paste |
+   | `POOLPRINT_SIGNING_STORE_PASSWORD` | the keystore password |
+   | `POOLPRINT_SIGNING_KEY_ALIAS` | `poolprint` |
+   | `POOLPRINT_SIGNING_KEY_PASSWORD` | the key password (with PKCS12 the same as the store password) |
+
+   Afterwards clear the clipboard (e.g. copy something else). Never paste these anywhere else.
+5. Optional: *Settings → Actions → General → Workflow permissions* can stay at *Read repository contents*; the
+   release job asks for `contents: write` itself.
+
+### Releasing with the workflow
+
+Instead of step 3 of the [patch routine](#patch-release-routine) (use one way per version, not both):
+
+1. 🤖 Bump the version in `gradle.properties`, commit; 👤 push to `main` and wait for CI to pass.
+2. 👤 Tag that commit and push the tag (this starts `release.yml`):
+   ```bash
+   git tag v1.0.1 && git push origin v1.0.1
+   ```
+3. 👤 *Actions → Release → the run → Review deployments → release → Approve*.
+4. 👤 When it's green, open the draft under *Releases*: edit the notes (*What's new*, *Known limitations*; delete
+   the `<!-- Edit: … -->` line), check the files, for an RC keep *Set as a pre-release*, then **Publish**.
+
+If a run fails after the tag was pushed, fix on `main` and release the next version (new tag, `versionCode` +1);
+don't move a pushed tag. A failed run that only needs repeating (runner trouble) can be re-run from the Actions page;
+`ci-draft` refuses to make a second draft if the first run got that far.
+
+**Checked 2026-11-07** (by the agent, locally; nothing ran on GitHub, since agents don't push or tag): both workflow
+files parse as YAML (actionlint couldn't be installed here); the combined test command passes; in a scratch clone
+`ci-check-tag` accepts a matching tag on `main` and refuses a wrong tag, an empty one, and a commit not on `main`;
+`ci-check-apk` passes the published 1.0.0 APK and refuses the rc.2 APK (wrong `versionCode`); `ci-check-dmg` passes
+the 1.0.0 DMG; `ci-package` on the 1.0.0 files reproduces the published `SHA256SUMS.txt` exactly, and the notes skip
+the tag on `HEAD` (a `1.0.1-rc.1` tag lists the commits since `v1.0.0`); `ci-draft` (with a stub `gh` that printed
+instead of creating) refused `v1.0.0` because the release exists and built the expected `gh release create … --draft
+--prerelease --verify-tag` call for `v1.0.1-rc.1`; the DMG build configures without an Android SDK. **Not run:** the
+workflows themselves, the keystore decoding, the environment approval and a draft created by the workflow
+(👤 first real run, ideally with an RC).
 
 ---
 
@@ -639,3 +729,4 @@ Copy into a new agent session when you get to a phase:
 - *"Do Phase 4 of docs/release.md. The release certificate SHA-256 is …"*
 - *"Here are my Phase 6 results: … Update the roadmap and decisions, fix what's blocking, prepare the next RC."*
 - *"Prepare v1.0.0 per Phase 7 of docs/release.md."*
+- *"Do Phase 9 of docs/release.md."* · *"Bump to 1.0.1 for a release through the workflow (Phase 9)."*

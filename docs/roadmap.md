@@ -281,3 +281,8 @@ notes and a clear "vibe-coded, provided as is" notice. The phases, owner/agent s
   (checksums match GitHub's); the notes list the known limitations.
 - 🟨 Phase 8 — after the release (2026-11-07): release page, downloads and linked files load without a GitHub
   login. Left: 👤 optionally tell people. Later releases follow the patch routine in release.md.
+- 🟨 Phase 9 (optional) — GitHub Actions (2026-11-07, D-24): `ci.yml` runs every test suite on pushes to `main`
+  and on PRs; `release.yml` builds a pushed `v*` tag (release-key APK on Linux, DMG on macOS arm64, the release
+  script's checks via `scripts/release.sh ci-*`) into a **draft** release. Checked locally only. The `release`
+  environment and its four secrets are set up (2026-11-07). Left: 👤 push the workflows, then a first real run
+  (ideally an RC).

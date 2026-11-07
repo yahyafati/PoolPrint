@@ -42,6 +42,8 @@ Rules for anyone working on this repo: human contributors and AI coding agents. 
 | Build-logic tests (version parsing) | `./gradlew :buildSrc:test` (`make test-build`; `make test-all` runs every suite) |
 | Release files (tests, release-key APK, DMG, checks, checksums, notes) | `make release` → `build/release/<version>/` ([release.md, Phase 4](release.md#how-the-release-script-works)) |
 | Draft GitHub release from those files | `make release-draft` (needs `gh`; publishing stays manual) |
+| CI (GitHub Actions) | `.github/workflows/ci.yml`: every test suite on pushes to `main` and on PRs |
+| Release in GitHub Actions (optional) | push a tag `v<version>` → `.github/workflows/release.yml` makes a draft release ([release.md, Phase 9](release.md#phase-9-optional--automate-with-github-actions)) |
 | macOS Keychain test (touches the real login keychain) | `POOLPRINT_KEYCHAIN_TEST=1 ./gradlew :shared:jvmTest --tests '*MacKeychain*'` |
 
 **Release signing (Android).** `release` builds are signed with the release key when the four

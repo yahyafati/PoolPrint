@@ -1,0 +1,182 @@
+# Optional release build in GitHub Actions (docs/release.md, Phase 9; D-24).
+#
+# On a pushed tag v<versionName>: tests, the release-key APK (Linux), the DMG (macOS arm64), the same checks as
+# `make release` (scripts/release.sh ci-*), then a *draft* GitHub release with the same files. Publishing stays a
+# manual click on GitHub. `make release` on the owner's Mac keeps working; use one or the other per version.
+#
+# The signing secrets live in the `release` environment (owner approval, `v*` tags only) and only reach the one step
+# that builds the APK. No Gradle cache is restored or saved here.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.ref_name }}
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  prepare:
+    name: Check the tag, run the tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      skip: ${{ steps.existing.outputs.skip }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Publishing a draft made by `make release-draft` creates the tag and lands here too: nothing to build then.
+      - name: Skip if the release already exists
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::notice::A release for $TAG already exists (made with make release-draft); nothing to build."
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Tag matches gradle.properties and is on main
+        if: steps.existing.outputs.skip != 'true'
+        run: scripts/release.sh ci-check-tag "$TAG"
+
+      - uses: gradle/actions/wrapper-validation@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        if: steps.existing.outputs.skip != 'true'
+
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        if: steps.existing.outputs.skip != 'true'
+        with:
+          distribution: zulu
+          java-version: '21'
+
+      - name: Run every test suite (make test-all)
+        if: steps.existing.outputs.skip != 'true'
+        run: ./gradlew :shared:jvmTest :shared:testAndroidHostTest :buildSrc:test
+
+  android:
+    name: Release-key APK
+    needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Holds the signing secrets; waits for the owner's approval.
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: zulu
+          java-version: '21'
+
+      - name: Decode the release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.POOLPRINT_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Secret POOLPRINT_KEYSTORE_BASE64 is missing in the release environment (docs/release.md, Phase 9)."
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode >"$RUNNER_TEMP/poolprint-release.jks"
+
+      # The build reads the POOLPRINT_SIGNING_* variables (androidApp/build.gradle.kts). No configuration cache, so
+      # the passwords aren't written to disk.
+      - name: Build the release APK
+        env:
+          POOLPRINT_SIGNING_STORE_FILE: ${{ runner.temp }}/poolprint-release.jks
+          POOLPRINT_SIGNING_STORE_PASSWORD: ${{ secrets.POOLPRINT_SIGNING_STORE_PASSWORD }}
+          POOLPRINT_SIGNING_KEY_ALIAS: ${{ secrets.POOLPRINT_SIGNING_KEY_ALIAS }}
+          POOLPRINT_SIGNING_KEY_PASSWORD: ${{ secrets.POOLPRINT_SIGNING_KEY_PASSWORD }}
+        run: ./gradlew --no-configuration-cache :androidApp:assembleRelease
+
+      - name: Remove the keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/poolprint-release.jks"
+
+      - name: Check the APK (release certificate, package, version)
+        run: scripts/release.sh ci-check-apk
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: apk
+          path: androidApp/build/outputs/apk/release/androidApp-release.apk
+          retention-days: 7
+          if-no-files-found: error
+
+  macos:
+    name: DMG (macOS arm64)
+    needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
+    # Apple Silicon (D-22: arm64 only); ci-check-dmg refuses anything else. jpackage can't cross-build, so an
+    # Intel DMG would need a second job on an Intel runner.
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The bundled runtime comes from this JDK, as on the owner's Mac (Zulu 21, gradle-daemon-jvm.properties).
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: zulu
+          java-version: '21'
+
+      - name: Build the DMG
+        run: ./gradlew :desktopApp:packageReleaseDmg
+
+      - name: Check the DMG and app bundle (identifier, arm64, signature, version)
+        run: scripts/release.sh ci-check-dmg
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dmg
+          path: desktopApp/build/compose/binaries/main-release/dmg/*.dmg
+          retention-days: 7
+          if-no-files-found: error
+
+  release:
+    name: Draft release
+    needs: [android, macos]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      # Full history and tags: the notes list the commits since the last final release.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: ${{ runner.temp }}/artifacts
+
+      - name: Release files (stable names, notices, checksums, notes)
+        run: |
+          shopt -s nullglob
+          dmgs=("$RUNNER_TEMP"/artifacts/dmg/*.dmg)
+          [ ${#dmgs[@]} -eq 1 ] || { echo "::error::Expected one DMG, found ${#dmgs[@]}."; exit 1; }
+          scripts/release.sh ci-package "$RUNNER_TEMP/artifacts/apk/androidApp-release.apk" "${dmgs[0]}"
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/release.sh ci-draft

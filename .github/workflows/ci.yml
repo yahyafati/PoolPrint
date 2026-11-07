@@ -1,0 +1,50 @@
+# Tests on every push to main and every pull request (docs/release.md, Phase 9).
+# No secrets here: this workflow also runs for pull requests from forks.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests (JVM, Android host, build logic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # A changed gradle-wrapper.jar would run in the release workflow too, next to the signing key.
+      - uses: gradle/actions/wrapper-validation@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+
+      # Zulu 21 matches gradle/gradle-daemon-jvm.properties, so Gradle doesn't download another JDK.
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: zulu
+          java-version: '21'
+          cache: gradle
+
+      # The three suites of `make test-all`, in one Gradle run.
+      - name: Run the tests
+        run: ./gradlew :shared:jvmTest :shared:testAndroidHostTest :buildSrc:test
+
+      - name: Upload the test reports
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-reports
+          path: |
+            shared/build/reports/tests/
+            buildSrc/build/reports/tests/
+          retention-days: 7
+          if-no-files-found: ignore

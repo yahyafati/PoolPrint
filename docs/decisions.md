@@ -400,7 +400,7 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
 - **Mac architectures (0.5):** **arm64 only**. No Intel build (jpackage can't cross-build; would need an Intel
   machine or runner).
 - **Where releases are built (0.6):** on the **owner's Mac** with `make release`. The signing key never leaves it.
-  GitHub Actions (Phase 9) stays optional.
+  GitHub Actions (Phase 9) stays optional; the workflows exist since D-24.
 - **Release gate (0.7):** the **blocking list** in release.md Phase 6.2 must pass on the RC built from the release
   commit. Every other open real-server check ships as a "known limitation" in the notes.
 - **Update notifications (0.8):** **none**. The app talks only to the pool server; users watch the repo's releases.
@@ -418,6 +418,26 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
   ≥ 1, D-18). The full name is shown in Settings → About.
 - **One source** for both apps: `poolprint.versionName` and `poolprint.versionCode` in `gradle.properties`
   (Phase 2), parsed and checked by `buildSrc/PoolPrintVersion.kt`; a malformed value fails the build.
+
+## D-24 GitHub Actions (release R1, Phase 9)
+
+**Status:** Accepted (owner asked for Phase 9, 2026-11-07). Extends D-22 (0.6) without replacing it.
+- **CI:** `.github/workflows/ci.yml` runs every test suite (`make test-all`'s three) on `ubuntu-latest` for pushes
+  to `main` and all pull requests, after Gradle wrapper validation. No secrets.
+- **Release builds:** `.github/workflows/release.yml` builds a pushed `v*` tag: release-key APK on Linux, DMG on a
+  macOS arm64 runner, then a **draft** release. Publishing stays manual. It reuses `scripts/release.sh`'s checks
+  (`ci-*` commands), so CI and `make release` refuse the same things. The tag must equal
+  `v<poolprint.versionName>` and be on `main`. A tag created by publishing a `make release-draft` draft is
+  recognised and skipped.
+- **Both ways stay:** `make release` on the owner's Mac remains the default (D-22). The workflow is used only once
+  the owner has set up the `release` environment; one way per version.
+- **Signing key in GitHub:** only as **environment secrets** of `release` (required owner approval, `v*` tags only),
+  read by one job and one step; the keystore is decoded to the runner's temp dir and deleted after the build, the
+  configuration cache is off for that build, and `release.yml` restores and saves no Gradle cache. Accepted
+  trade-off: the key then also lives in GitHub.
+- **Actions:** only `actions/*` and `gradle/actions/wrapper-validation`, each pinned to a full commit SHA (see the
+  dependency register). Update them by SHA, never by moving tag.
+- **Intel:** still none (D-22, 0.5); an Intel DMG would be a second macOS job on an Intel runner.
 
 ---
 
@@ -463,4 +483,6 @@ All non-template dependencies, planned or added. Update this table whenever `lib
 | Apache PDFBox `pdfbox` 3.0.8 | `jvmMain` | Page counting on desktop (D-02) | Added (M2) |
 | Apache MINA SSHD `sshd-core` 2.20.0 (+ `bcpkix`, `slf4j-simple`) | `jvmTest` only | In-process SSH server for testing the real `SshClient`; also run standalone for the emulator | Added (M1) |
 | `kotlin-test` (Gradle's embedded Kotlin version) | `buildSrc` tests only | Tests for the version parsing (release Phase 2); not shipped | Added (R1) |
+| `actions/checkout` v7.0.1, `actions/setup-java` v6.2.0, `actions/upload-artifact` v7.0.2, `actions/download-artifact` v8.0.2 (pinned by SHA, D-24) | GitHub Actions only | CI and release workflows; not shipped | Added (R1, Phase 9) |
+| `gradle/actions/wrapper-validation` v6.4.1 (pinned by SHA, D-24) | GitHub Actions only | Checks `gradle-wrapper.jar` against Gradle's published checksums; not shipped | Added (R1, Phase 9) |
 | Robolectric | Android host tests | Keystore and PdfRenderer tests, if needed | Optional |

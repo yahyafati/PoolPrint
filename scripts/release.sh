@@ -6,6 +6,7 @@
 #
 # The version comes from gradle.properties (Phase 2). Output: build/release/<version>/.
 # Runs on the owner's Mac (D-22). Never prints signing values; Gradle reads them from local.properties itself.
+# The ci-* commands are the same checks for the optional release workflow (Phase 9, .github/workflows/release.yml).
 # Bash 3.2 compatible (macOS /bin/bash).
 
 set -euo pipefail
@@ -175,7 +176,8 @@ check_dmg() {
 # write_notes <file>: the template with the version, file names, certificate and the commits since the last release.
 write_notes() {
     local out=$1 since range changes
-    since=$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-rc.*' HEAD 2>/dev/null || true)
+    # In CI the tag being released already exists on HEAD; skip it so the notes start at the previous release.
+    since=$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-rc.*' --exclude "$TAG" HEAD 2>/dev/null || true)
     if [ -n "$since" ]; then
         range="$since..HEAD"
     else
@@ -200,6 +202,40 @@ write_notes() {
         }' "$NOTES_TEMPLATE" >"$out"
     rm -f "$changes"
     if grep -q '{{' "$out"; then die "Unfilled placeholder in $out (check $NOTES_TEMPLATE)."; fi
+}
+
+# stage_release_files <apk> <dmg> <commit> <step labels ×3>: build/release/<version>/ with the stable file names,
+# the notices, SHA256SUMS.txt and release-notes.md. Shared by `build` and `ci-package`.
+stage_release_files() {
+    local apk=$1 dmg=$2 commit=$3 kept_notes=
+    step "$4 Copying the release files into $OUT_DIR"
+    # Keep notes the owner already edited for this version; delete the file to regenerate it.
+    if [ -f "$OUT_DIR/release-notes.md" ]; then
+        kept_notes=$(mktemp "${TMPDIR:-/tmp}/poolprint-notes.XXXXXX")
+        cp "$OUT_DIR/release-notes.md" "$kept_notes"
+    fi
+    rm -rf "$OUT_DIR"
+    mkdir -p "$OUT_DIR"
+    cp "$apk" "$OUT_DIR/$APK_NAME"
+    cp "$dmg" "$OUT_DIR/$DMG_NAME"
+    cp THIRD_PARTY_NOTICES.md "$OUT_DIR/THIRD_PARTY_NOTICES.md"
+    # Not uploaded: tells `draft` which commit these files come from (the tag goes there).
+    echo "$commit" >"$OUT_DIR/.release-commit"
+    # The copies are what ships, so check them again.
+    check_apk "$OUT_DIR/$APK_NAME"
+    info "copied $APK_NAME, $DMG_NAME, THIRD_PARTY_NOTICES.md"
+
+    step "$5 Writing SHA256SUMS.txt"
+    (cd "$OUT_DIR" && shasum -a 256 "$APK_NAME" "$DMG_NAME" THIRD_PARTY_NOTICES.md >SHA256SUMS.txt && sed 's/^/    /' SHA256SUMS.txt)
+
+    step "$6 Writing release-notes.md"
+    if [ -n "$kept_notes" ]; then
+        mv "$kept_notes" "$OUT_DIR/release-notes.md"
+        info "kept your existing release-notes.md (delete it and rerun to regenerate)"
+    else
+        write_notes "$OUT_DIR/release-notes.md"
+        info "drafted from $NOTES_TEMPLATE with the commits since the last release"
+    fi
 }
 
 cmd_build() {
@@ -229,35 +265,7 @@ cmd_build() {
     local dmg_built="$DMG_BUILT_DIR/Pool Print-$MAC_VERSION.dmg"
     check_dmg "$dmg_built"
 
-    step "6/8 Copying the release files into $OUT_DIR"
-    # Keep notes the owner already edited for this version; delete the file to regenerate it.
-    local kept_notes=
-    if [ -f "$OUT_DIR/release-notes.md" ]; then
-        kept_notes=$(mktemp "${TMPDIR:-/tmp}/poolprint-notes.XXXXXX")
-        cp "$OUT_DIR/release-notes.md" "$kept_notes"
-    fi
-    rm -rf "$OUT_DIR"
-    mkdir -p "$OUT_DIR"
-    cp "$APK_BUILT" "$OUT_DIR/$APK_NAME"
-    cp "$dmg_built" "$OUT_DIR/$DMG_NAME"
-    cp THIRD_PARTY_NOTICES.md "$OUT_DIR/THIRD_PARTY_NOTICES.md"
-    # Not uploaded: tells `draft` which commit these files come from (the tag goes there).
-    echo "$commit" >"$OUT_DIR/.release-commit"
-    # The copies are what ships, so check them again.
-    check_apk "$OUT_DIR/$APK_NAME"
-    info "copied $APK_NAME, $DMG_NAME, THIRD_PARTY_NOTICES.md"
-
-    step "7/8 Writing SHA256SUMS.txt"
-    (cd "$OUT_DIR" && shasum -a 256 "$APK_NAME" "$DMG_NAME" THIRD_PARTY_NOTICES.md >SHA256SUMS.txt && sed 's/^/    /' SHA256SUMS.txt)
-
-    step "8/8 Writing release-notes.md"
-    if [ -n "$kept_notes" ]; then
-        mv "$kept_notes" "$OUT_DIR/release-notes.md"
-        info "kept your existing release-notes.md (delete it and rerun to regenerate)"
-    else
-        write_notes "$OUT_DIR/release-notes.md"
-        info "drafted from $NOTES_TEMPLATE with the commits since the last release"
-    fi
+    stage_release_files "$APK_BUILT" "$dmg_built" "$commit" 6/8 7/8 8/8
 
     echo
     echo "Done: $OUT_DIR"
@@ -307,11 +315,74 @@ cmd_draft() {
     echo "Draft created; only you can see it. Review it on GitHub and publish it there (that creates the tag $TAG)."
 }
 
+# --- CI (.github/workflows/release.yml, docs/release.md Phase 9) ------------------------------------------------
+# The same checks as `build`, split over the workflow's jobs: the APK is built on Linux, the DMG on a macOS arm64
+# runner, and the draft is created from both. Only the workflow calls these.
+
+# ci-check-tag <tag>: the pushed tag is v<versionName> from gradle.properties, and its commit is on origin/main.
+cmd_ci_check_tag() {
+    read_version
+    local tag=${1:-}
+    [ "$tag" = "$TAG" ] ||
+        die "Tag '$tag' doesn't match gradle.properties (poolprint.versionName=$VERSION, so the tag must be $TAG)."
+    git merge-base --is-ancestor HEAD refs/remotes/origin/main ||
+        die "The tagged commit $(git rev-parse HEAD) isn't on main. Tag a commit that is pushed to main."
+    info "tag $TAG matches gradle.properties (versionCode $VERSION_CODE) and is on main"
+}
+
+# ci-check-apk [apk]: release certificate, package, version (default: the Gradle output).
+cmd_ci_check_apk() {
+    read_version
+    find_build_tools
+    check_apk "${1:-$APK_BUILT}"
+}
+
+# ci-check-dmg [dmg]: mounts it and checks the bundle (default: the Gradle output). macOS arm64 only.
+cmd_ci_check_dmg() {
+    read_version
+    require_macos_arm64
+    check_dmg "${1:-$DMG_BUILT_DIR/Pool Print-$MAC_VERSION.dmg}"
+}
+
+# ci-package <apk> <dmg>: build/release/<version>/ from the checked binaries, as `build` steps 6–8 do.
+cmd_ci_package() {
+    read_version
+    find_build_tools
+    [ $# -eq 2 ] || die "usage: $0 ci-package <apk> <dmg>"
+    [ -f "$2" ] || die "DMG not found: $2"
+    stage_release_files "$1" "$2" "$(git rev-parse HEAD)" 1/3 2/3 3/3
+}
+
+# ci-draft: a draft (pre-)release for the existing tag with the files from ci-package. Publishing stays manual.
+cmd_ci_draft() {
+    read_version
+    local pre= f existing
+    for f in "$APK_NAME" "$DMG_NAME" THIRD_PARTY_NOTICES.md SHA256SUMS.txt release-notes.md; do
+        [ -f "$OUT_DIR/$f" ] || die "$OUT_DIR/$f is missing; run ci-package first."
+    done
+    (cd "$OUT_DIR" && shasum -a 256 -c SHA256SUMS.txt | sed 's/^/    /') || die "Checksums don't match."
+    # The releases API lists drafts too (the workflow's token may write), so a rerun can't make a second draft.
+    existing=$(gh api "repos/{owner}/{repo}/releases" --paginate --jq ".[] | select(.tag_name == \"$TAG\") | .html_url")
+    [ -z "$existing" ] || die "A GitHub release for $TAG already exists: $existing"
+    if [ -n "$IS_RC" ]; then pre=--prerelease; fi
+    step "Creating the draft release $TAG${pre:+ (pre-release)}"
+    gh release create "$TAG" --draft $pre --verify-tag --title "Pool Print $VERSION" \
+        --notes-file "$OUT_DIR/release-notes.md" \
+        "$OUT_DIR/$APK_NAME" "$OUT_DIR/$DMG_NAME" "$OUT_DIR/THIRD_PARTY_NOTICES.md" "$OUT_DIR/SHA256SUMS.txt"
+}
+
 # Sourcing the script (for tests) defines the functions without running anything.
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
-    case "${1:-}" in
+    cmd=${1:-}
+    [ $# -eq 0 ] || shift
+    case "$cmd" in
         build) cmd_build ;;
         draft) cmd_draft ;;
-        *) die "usage: $0 build|draft (or: make release, make release-draft)" ;;
+        ci-check-tag) cmd_ci_check_tag "$@" ;;
+        ci-check-apk) cmd_ci_check_apk "$@" ;;
+        ci-check-dmg) cmd_ci_check_dmg "$@" ;;
+        ci-package) cmd_ci_package "$@" ;;
+        ci-draft) cmd_ci_draft ;;
+        *) die "usage: $0 build|draft (or: make release, make release-draft); ci-* commands are for the release workflow" ;;
     esac
 fi
