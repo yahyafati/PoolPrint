@@ -99,7 +99,8 @@ password is the same as the store password.
 
 ### 1.3 👤 Tell Gradle where it is
 
-Add to your **user-level** `~/.gradle/gradle.properties` (not the repo's):
+Add to the repo's **`local.properties`** (the file next to `settings.gradle.kts` that already holds `sdk.dir`). It is
+in `.gitignore`, so it never gets committed. Not `gradle.properties`: that one is checked in.
 
 ```properties
 poolprint.signing.storeFile=/Users/yahyahaji/keys/poolprint-release.jks
@@ -109,16 +110,28 @@ poolprint.signing.keyPassword=<password>
 ```
 
 ```bash
-chmod 600 ~/.gradle/gradle.properties
+chmod 600 local.properties
 ```
+
+Two things to know about `local.properties`:
+- It belongs to this one checkout. A fresh clone or a git worktree (as agent sessions sometimes use) doesn't have
+  it, so its release builds fall back to debug signing, and the release script refuses them. Build releases from
+  your main checkout.
+- Android Studio rewrites `sdk.dir` in it now and then and normally keeps the other lines. Your password manager
+  copy (1.2) is the backup, not this file.
 
 ### 1.4 🤖 Wire it into the build
 
 Agent tasks:
 
-- [ ] `androidApp/build.gradle.kts`: add a `release` signing config that reads the four `poolprint.signing.*`
-      properties through `providers.gradleProperty(...)` (configuration-cache safe) or the matching
-      `POOLPRINT_SIGNING_*` environment variables (for CI).
+- [ ] `androidApp/build.gradle.kts`: add a `release` signing config that reads the four `poolprint.signing.*` keys
+      from the root project's `local.properties`, falling back to the matching `POOLPRINT_SIGNING_*` environment
+      variables (for CI). Gradle doesn't load `local.properties` on its own, so `providers.gradleProperty(...)` won't
+      see these keys. Read the file through `providers.fileContents(rootProject.layout.projectDirectory.file("local.properties"))`
+      and `java.util.Properties`, so the configuration cache tracks it as an input; read the environment variables
+      with `providers.environmentVariable(...)`.
+- [ ] Never log, print or echo the password values, and don't read them back while checking the change. Test the
+      "missing" path by building without the keys, e.g. in a worktree.
 - [ ] If the properties are missing, keep signing `release` with the debug key so `make install-phone` still works
       for contributors, and print a Gradle warning ("release APK is debug-signed, not for distribution").
       The release script (Phase 4) refuses to package a debug-signed APK.
@@ -150,7 +163,8 @@ Android devices: remove the old key's line from `~/.ssh/authorized_keys` on the 
 key the device uses), uninstall Pool Print, install the release-key build, onboard again. The Mac is unaffected.
 
 **Done when:** `make android` produces an APK whose certificate matches the recorded fingerprint, and nothing
-secret is in git (`git status` clean, `git log -p | grep -i jks` finds only `.gitignore`).
+secret is in git (`git status` clean, `git check-ignore local.properties` prints the path,
+`git log -p --all | grep -i 'jks\|poolprint.signing'` finds only `.gitignore`, the build script and docs).
 
 ---
 
@@ -441,7 +455,7 @@ secrets.
 Copy into a new agent session when you get to a phase:
 
 - *"Read docs/release.md. Record my Phase 0 answers in decisions.md as D-22/D-23: …"*
-- *"Do the agent tasks of Phase 1.4 in docs/release.md. Don't read ~/.gradle/gradle.properties."*
+- *"Do the agent tasks of Phase 1.4 in docs/release.md. The signing keys are in local.properties; don't print their values."*
 - *"Do Phase 2 of docs/release.md."*
 - *"Do Phase 3 of docs/release.md up to the owner review; report the secret-scan findings, don't rewrite history."*
 - *"Do Phase 4 of docs/release.md. The release certificate SHA-256 is …"*
