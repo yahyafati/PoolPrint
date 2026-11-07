@@ -383,6 +383,42 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
   still has no way to continue, see security.md).
 - **No new dependencies.**
 
+## D-22 Distribution and signing (release R1)
+
+**Status:** Accepted (owner, 2026-11-07). Answers to [release.md](release.md) Phase 0.1, 0.2, 0.4–0.9.
+- **Channel:** sideloaded **GitHub Releases** of `yahyafati/PoolPrint` (APK + `.dmg`, checksums, notes). No app
+  store, no update server.
+- **Visibility (0.1):** the repo goes **public**, but only after the owner has approved the Phase 3 secret and
+  privacy scan of the whole history. Until then it stays private.
+- **Licence (0.2):** **MIT**. Its "as is, without warranty" clause is the legal backing for the plain-language
+  vibe-coded notice (README, release notes, Settings → About). All current runtime dependencies are compatible.
+- **Android signing:** a dedicated release key (`~/keys/poolprint-release.jks`, PKCS12, alias `poolprint`), created
+  and backed up by the owner, read from `local.properties` (Phase 1). Debug-key fallback for contributors only; the
+  release script refuses debug-signed APKs.
+- **macOS signing (0.4):** **ad-hoc** (jpackage) for v1, no Developer ID, no notarisation. Users click *Open Anyway*
+  once; the Keychain prompt after updates (D-04) stays possible. Revisit if users complain.
+- **Mac architectures (0.5):** **arm64 only**. No Intel build (jpackage can't cross-build; would need an Intel
+  machine or runner).
+- **Where releases are built (0.6):** on the **owner's Mac** with `make release`. The signing key never leaves it.
+  GitHub Actions (Phase 9) stays optional.
+- **Release gate (0.7):** the **blocking list** in release.md Phase 6.2 must pass on the RC built from the release
+  commit. Every other open real-server check ships as a "known limitation" in the notes.
+- **Update notifications (0.8):** **none**. The app talks only to the pool server; users watch the repo's releases.
+- **Pool admins (0.9):** undecided. A heads-up to the Fachschaft/pool admins stays an optional courtesy with no
+  deadline; it doesn't block the release.
+
+## D-23 Versioning (release R1)
+
+**Status:** Accepted (owner, 2026-11-07). Answer to [release.md](release.md) Phase 0.3.
+- **SemVer** `MAJOR.MINOR.PATCH`; the first public release is `1.0.0`.
+- **Release candidates** are `1.0.0-rc.1`, `-rc.2`, … with tags `v1.0.0-rc.N`, published as GitHub pre-releases.
+- **Android `versionCode`** is a plain counter, **+1 for every build that leaves the owner's machine** (RCs
+  included), never reused. `1` is taken by the existing debug builds, so the first RC is `2`.
+- **macOS `packageVersion`** is the `versionName` without the `-rc.N` suffix (macOS accepts only numbers, major
+  ≥ 1, D-18). The full name is shown in Settings → About.
+- **One source** for both apps: `poolprint.versionName` and `poolprint.versionCode` in `gradle.properties`
+  (Phase 2).
+
 ---
 
 ## Open questions

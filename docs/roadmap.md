@@ -11,7 +11,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done (unit-tested) · 
 | M2 — Options & cost | 🔶 |
 | M3 — Discovery, presets, queue | 🔶 |
 | M4 — macOS polish | 🔶 |
-| R1 — First sideloaded GitHub release (v1.0.0) | ⬜ |
+| R1 — First sideloaded GitHub release (v1.0.0) | 🟨 |
 
 ---
 
@@ -234,3 +234,8 @@ sets as presets, and see and cancel your own jobs.
 **Goal:** `v1.0.0` on GitHub Releases as a release-key-signed APK and an ad-hoc-signed `.dmg`, with checksums,
 notes and a clear "vibe-coded, provided as is" notice. The phases, owner/agent split and release gate are in
 [release.md](release.md).
+
+- ✅ Phase 0 — decisions (2026-11-07): public repo after the Phase 3 scan, MIT, SemVer with `-rc.N` pre-releases,
+  ad-hoc macOS signing, arm64 only, built on the owner's Mac, Phase 6.2 blocking list as the gate, no update
+  check (D-22, D-23).
+- ⬜ Phase 1 — Android release signing key (next).

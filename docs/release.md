@@ -40,7 +40,7 @@ Facts from the repo that shape this plan:
 
 | Phase | What | Who |
 |---|---|---|
-| [0](#phase-0--decisions) | Decide visibility, licence, versioning, macOS signing, architectures, release gate | 👤 |
+| [0](#phase-0--decisions) | ✅ Decide visibility, licence, versioning, macOS signing, architectures, release gate | 👤 |
 | [1](#phase-1--android-release-signing-key) | Create and back up the Android release key; wire it into Gradle | 👤 key · 🤖 Gradle |
 | [2](#phase-2--one-version-number) | One version source for both apps; show the version in Settings | 🤖 |
 | [3](#phase-3--repository-ready-to-go-public) | Secret scan, licence, third-party notices, README install guide | 🤖 prepare · 👤 approve |
@@ -71,6 +71,21 @@ D-22 (distribution and signing) and D-23 (versioning), and adjusts the later pha
 | 0.9 | **Telling the pool admins** | Yes · no | Optional courtesy: the app only automates the documented `ssh … lpr` procedure, but a heads-up to the Fachschaft/pool admins avoids surprises. |
 
 **Done when:** every row has an answer and D-22/D-23 are in `decisions.md`.
+
+✅ **Answered 2026-11-07** (recorded as [D-22](decisions.md#d-22-distribution-and-signing-release-r1) and
+[D-23](decisions.md#d-23-versioning-release-r1)): every recommendation above was taken.
+
+| # | Answer |
+|---|---|
+| 0.1 | **Public**, flipped only after the owner approves the Phase 3 scan. |
+| 0.2 | **MIT**. |
+| 0.3 | **SemVer**, RCs as `v1.0.0-rc.N` pre-releases, `versionCode` +1 per build that leaves the Mac (first RC: 2). |
+| 0.4 | **Ad-hoc** for v1. |
+| 0.5 | **arm64 only**. |
+| 0.6 | **The owner's Mac** (`make release`); Phase 9 stays optional. |
+| 0.7 | The **Phase 6.2 blocking list**; everything else goes into known limitations. |
+| 0.8 | **None**. |
+| 0.9 | Undecided: optional courtesy, doesn't block the release. |
 
 ---
 
@@ -202,7 +217,7 @@ secret is in git (`git status` clean, `git check-ignore local.properties` prints
       quick way; otherwise `git log -p --all | grep -nE '…'`. The agent reports findings; **you** decide whether
       anything needs a history rewrite (that would be done before going public).
       *(The server host-key fingerprint in `decisions.md`, open question 5, is public server information and fine.)*
-- [ ] **`LICENSE`** with the licence from 0.2, and a licence line in the README.
+- [ ] **`LICENSE`**: the MIT licence (0.2, D-22), copyright holder Yahya Fati, and a licence line in the README.
 - [ ] **`THIRD_PARTY_NOTICES.md`**: the libraries that ship inside the APK/DMG and their licences (sshj, BouncyCastle,
       PDFBox, JNA, kotlinx, AndroidX/Compose, and what the release build actually bundles; test-only MINA SSHD is not
       shipped). Apache-2.0 requires passing on their licence and NOTICE texts with binary redistributions. Attach it
@@ -210,7 +225,7 @@ secret is in git (`git status` clean, `git check-ignore local.properties` prints
 - [ ] **"Vibe-coded, as is" notice**, worded like the box in the [release notes template](#release-notes-template),
       in three places: right under the README title (before any feature list or download link), at the top of
       every release's notes, and in the app's **Settings → About** next to the version (Phase 2), with a link to the
-      licence. The licence's own no-warranty clause (MIT and GPL both have one) is the legal part; this notice is the
+      licence. The MIT licence's own no-warranty clause is the legal part; this notice is the
       plain-language one people actually read. Extend the README's existing *Disclaimer* section to match.
 - [ ] **README rewrite of the top**: real status, a **Download** link to
       `https://github.com/yahyafati/PoolPrint/releases/latest`, and an **Install** section (text below). Building
