@@ -14,6 +14,7 @@ Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a 
 - `docs/architecture.md` — target source sets (incl. planned `jvmCommonMain`), packages, interfaces, flows.
 - `docs/print-options.md` — CUPS option mapping, validation, `lpstat`/`lpoptions`/`lpq` parsing, cost formula.
 - `docs/security.md` — key storage, host-key TOFU, command-construction rules, required injection tests.
+- `docs/release.md` — release milestone R1: signing, versioning, release script, release gate, owner/agent split.
 - `docs/ux.md` — screens and error catalogue. `docs/decisions.md` — decision log and open questions.
 
 ## Hard rules (summary — details in the docs)

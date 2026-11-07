@@ -169,6 +169,7 @@ docs/          design documentation
 | [Roadmap](docs/roadmap.md) | Milestones, acceptance criteria, manual test checklists |
 | [Decisions](docs/decisions.md) | Decision log and open questions |
 | [Development guide](docs/development.md) | Contribution rules, testing strategy, milestone reports |
+| [Release guide](docs/release.md) | How a sideloaded GitHub release is built, tested and published |
 
 ## Privacy
 
