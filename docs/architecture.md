@@ -223,9 +223,9 @@ menu shortcuts, the packaging and the notes below. macOS items are marked as suc
   [decisions.md](decisions.md#d-04-macos-keychain-access). On Windows: Credential Manager (D-26, above).
 - Packaging: `.dmg` through `packageDmg` on macOS (M4, D-18); a per-user `.msi` through `packageMsi` / `packageReleaseMsi`
   on Windows (D-30; `desktopApp/build.gradle.kts`, fixed `upgradeUuid`, `PoolPrint.ico`). jpackage only builds the
-  format of the OS it runs on, so the Msi cannot be built on macOS: the manual `.github/workflows/windows.yml` (D-31) runs
+  format of the OS it runs on, so the Msi cannot be built on macOS: `.github/workflows/windows.yml` (pushes to `main`, PRs, manual; D-31, D-32) runs
   the JVM tests and `packageReleaseMsi` on `windows-latest` and uploads the unsigned Msi, which `scripts/release.sh build
-  --windows-msi` then adds to a release made on the Mac (checks, `PoolPrint-<version>-windows-x64.msi`, `SHA256SUMS.txt`;
+  --windows-msi` then adds to a release made on the Mac (tagged releases built by `release.yml` build their own Msi, D-32) (checks, `PoolPrint-<version>-windows-x64.msi`, `SHA256SUMS.txt`;
   [release.md](release.md#windows-the-msi-d-25d-31)). No PDF file association on Windows (D-30); unsigned (D-29). Code signing and notarisation are out of scope unless requested.
 
 ## State and persistence

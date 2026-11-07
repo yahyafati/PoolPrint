@@ -12,7 +12,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done (unit-tested) · 
 | M3 — Discovery, presets, queue | 🔶 |
 | M4 — macOS polish | 🔶 |
 | R1 — First sideloaded GitHub release (v1.0.0) | 🔶 |
-| W — Windows desktop port (W0–W4) | 🔶 (D-25–D-31; done and unit-tested on macOS, needs the checklist on a Windows PC) |
+| W — Windows desktop port (W0–W4) | 🔶 (D-25–D-32; done and unit-tested on macOS, needs the checklist on a Windows PC) |
 
 ---
 
@@ -293,7 +293,7 @@ notes and a clear "vibe-coded, provided as is" notice. The phases, owner/agent s
 ## W — Windows desktop port
 
 **Goal:** the desktop app also runs on Windows x64 (JVM), installed from an unsigned per-user Msi that is built on a
-manually started GitHub Actions `windows-latest` run and added to a normal `make release`. Decisions: D-25–D-31 in
+GitHub Actions `windows-latest` run (CI on pushes and PRs, D-32) and shipped by `release.yml` or added to a normal `make release`. Decisions: D-25–D-32 in
 [decisions.md](decisions.md). Linux, Windows on ARM, the Microsoft Store and auto-update are out of scope. The desktop
 app runs on the JVM, so sshj, BouncyCastle, PDFBox, DataStore and the Compose UI needed no change; the macOS-only parts
 were the Keychain store, the data folder, "Open With", the menu shortcuts, the picker's filename filter, the
@@ -401,8 +401,9 @@ work without admin rights.
   OLE/CFB magic, version in the name equals `windowsPackageVersion`) before the long build, copies it to
   `build/release/<version>/PoolPrint-<version>-windows-x64.msi`, checks the copy, adds it to `SHA256SUMS.txt`. Without the flag
   the release is Android + macOS only and the script says so (start and end). `make release-draft` attaches the Msi when present
-  and re-checks it. `release.yml` (Android + macOS) and the `ci-*` commands are unchanged on purpose: a Windows release goes
-  through `make release` (D-31).
+  and re-checks it.
+- ✅ Follow-up (D-32): `windows.yml` also runs on pushes to `main` and on PRs; `release.yml` has a `windows` job (JVM tests on
+  Windows, `packageReleaseMsi`) and `ci-package <apk> <dmg> <msi>` / `ci-draft` ship the Msi in the tagged draft.
 - ✅ `scripts/release-notes.template.md`: `{{WIN}}` / `{{NOWIN}}` lines: Windows row, **Windows install** steps (SmartScreen
   *More info → Run anyway*, per-user install, Ctrl+O / drag / Open with → Choose another app, no file association, data in
   `%LOCALAPPDATA%\Pool Print`, key in Credential Manager, update and RC → final uninstall rule) and a Windows known limitation;

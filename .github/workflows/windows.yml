@@ -1,13 +1,17 @@
-# Windows build, started by hand only (docs/release.md, Windows; D-31).
+# Windows tests and Msi build (docs/release.md, Windows; D-31, amended by D-32).
 #
-# jpackage cannot build a Windows installer on the owner's Mac, so this runs the JVM tests on Windows (the MINA SSHD
-# transport tests, the loopback hand-over and file-lock tests) and builds the unsigned per-user Msi (D-29, D-30). The
-# Msi is uploaded as a workflow artifact. Nothing is published, tagged or released here, and there are no secrets:
-# download the Msi from the run (run it on the commit you are releasing; the summary shows the commit) and pass it to the
-# release script on the Mac (`make release WINDOWS_MSI=<file>`).
+# Runs on every push to main, on every pull request, and by hand. jpackage cannot build a Windows installer on the
+# owner's Mac, so this runs the JVM tests on Windows (the MINA SSHD transport tests, the loopback hand-over and
+# file-lock tests) and builds the unsigned per-user Msi (D-29, D-30). The Msi is uploaded as a workflow artifact.
+# Nothing is published, tagged or released here, and there are no secrets (pull requests from forks run it too).
+# Tagged releases build their own Msi in release.yml; for `make release` on the Mac, download the Msi from a run on
+# the commit you are releasing (the summary shows the commit) and pass it on (`make release WINDOWS_MSI=<file>`).
 name: Windows
 
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -15,7 +19,8 @@ permissions:
 
 concurrency:
   group: windows-${{ github.ref }}
-  cancel-in-progress: false
+  # A newer push to the same pull request supersedes the old run; runs on main and manual runs finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
   run:

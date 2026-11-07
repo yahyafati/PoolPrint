@@ -668,11 +668,14 @@ signing key. The Gradle cache comes from `actions/setup-java` (`cache: gradle`).
    `build/release/<version>/` like `make release` steps 6–8 (stable names, the APK checked again, notices,
    `SHA256SUMS.txt`, `release-notes.md` from the template with the commits since the last final release, skipping
    the tag being released), then `ci-draft` refuses if any release for the tag exists (drafts included) and runs
-   `gh release create v<version> --draft [--prerelease] --verify-tag` with the same four files as `make release-draft`.
+   `gh release create v<version> --draft [--prerelease] --verify-tag` with the same files as `make release-draft`.
+5. **windows** (`windows-latest`, after **prepare**, in parallel with android and macos; no secrets): `:shared:jvmTest` on
+   Windows, `:desktopApp:packageReleaseMsi`, uploads the Msi. The **release** job waits for it and passes it to
+   `ci-package <apk> <dmg> <msi>`, which runs `check_msi` (as `make release WINDOWS_MSI=…` does), copies it as
+   `PoolPrint-<version>-windows-x64.msi` and adds it to `SHA256SUMS.txt` and the notes; `ci-draft` attaches it (D-32).
 
-`release.yml` builds Android and macOS only: the Msi needs a Windows runner and has its own manual workflow
-([`windows.yml`](#windows-the-msi-d-25d-31), D-31). A release that includes the Msi goes through `make release
-WINDOWS_MSI=<file>` on your Mac, not through `release.yml`.
+So a draft made by `release.yml` always includes the Windows Msi; a failing Windows job stops the draft. The
+[Windows gate](#the-windows-gate) still runs on a Windows PC before you publish.
 
 No Gradle cache is restored or saved in `release.yml`: a release build shouldn't depend on, or leave anything in, a
 cache that other workflow runs share.
@@ -731,16 +734,17 @@ workflows themselves, the keystore decoding, the environment approval and a draf
 ## Windows: the Msi (D-25–D-31)
 
 The Windows desktop app ships as an **unsigned, per-user Msi** (D-29, D-30). jpackage builds only the installer of the OS
-it runs on, so the Msi cannot be built on your Mac. It is built by a **manual** GitHub Actions workflow
-(`.github/workflows/windows.yml`, `workflow_dispatch` only, D-31) and handed to the release script. A release is
-Android + macOS without it; adding Windows is optional per release.
+it runs on, so the Msi cannot be built on your Mac. It is built on GitHub Actions: `.github/workflows/windows.yml` runs
+on pushes to `main`, on pull requests and by hand (D-31, D-32) and uploads the Msi as an artifact, and the tag-triggered
+`release.yml` builds its own Msi into the draft (see [How the workflows work](#how-the-workflows-work)). For `make release`
+on your Mac the Msi is handed to the release script and stays optional: without it that release is Android + macOS.
 
-**Getting the Msi into a release**
+**Getting the Msi into a release made with `make release`**
 
 | Step | Who |
 |---|---|
 | Bump the version in `gradle.properties`, tests green, commit and push to `main` (the commit the whole release is built from) | 🤖 prepares · 👤 pushes |
-| *Actions → Windows → Run workflow* on that commit. It runs `:shared:jvmTest` on Windows (the MINA SSHD tests unchanged), builds `:desktopApp:packageReleaseMsi`, checks the file (one `.msi`, size, Installer header), prints `suggestRuntimeModules`, and uploads the Msi as the `msi` artifact (kept 14 days). The run summary lists the commit, size and SHA-256. It publishes nothing and needs no secrets. | 👤 |
+| Take the `Windows` run of that commit on `main` (it runs on every push), or *Actions → Windows → Run workflow* on it. It runs `:shared:jvmTest` on Windows (the MINA SSHD tests unchanged), builds `:desktopApp:packageReleaseMsi`, checks the file (one `.msi`, size, Installer header), prints `suggestRuntimeModules`, and uploads the Msi as the `msi` artifact (kept 14 days). The run summary lists the commit, size and SHA-256. It publishes nothing and needs no secrets. | 👤 |
 | Download the artifact, unzip it (GitHub zips artifacts), keep the name `Pool Print-<MAJOR.MINOR.PATCH>.msi` | 👤 |
 | Install that Msi on a Windows PC and run the [Windows gate](#the-windows-gate) | 👤 |
 | `make release WINDOWS_MSI="path/to/Pool Print-1.0.1.msi"` (or `scripts/release.sh build --windows-msi <file>`), then `make release-draft` as usual | 👤 |

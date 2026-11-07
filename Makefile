@@ -7,7 +7,7 @@
 # Several devices attached? Pick one with `make install-phone DEVICE=<serial>` (see `make devices`).
 # `make release` / `make release-draft` ignore BUILD: they always build release and refuse a debug-signed APK
 # (scripts/release.sh, docs/release.md Phase 4).
-# The Windows Msi can only be built on Windows (`make msi` there, or the manual "Windows" GitHub workflow, D-31).
+# The Windows Msi can only be built on Windows (`make msi` there, or the "Windows" GitHub workflow, which runs on pushes to main and PRs, D-31, D-32).
 # Pass one built elsewhere to the release with `make release WINDOWS_MSI=path/to/Pool\ Print-1.0.0.msi`.
 
 BUILD ?= release
@@ -99,7 +99,7 @@ require-macos:
 require-windows:
 	@[ "$(HOST_OS)" = windows ] || { \
 	  echo "The Windows Msi can only be built on Windows (host: $(HOST_OS)); jpackage can't cross-package." >&2; \
-	  echo "Run the manual 'Windows' workflow on GitHub (Actions > Windows > Run workflow), download its 'msi' artifact," >&2; \
+	  echo "Take the 'Windows' workflow run of your commit on GitHub (or Actions > Windows > Run workflow), download its 'msi' artifact," >&2; \
 	  echo "then: make release WINDOWS_MSI=<path to the .msi>  (docs/release.md)." >&2; \
 	  exit 1; }
 

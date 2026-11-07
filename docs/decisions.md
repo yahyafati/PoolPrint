@@ -586,6 +586,26 @@ the "W — Windows desktop port" milestone in [roadmap.md](roadmap.md#w--windows
   installs, or that it was built from the release commit) stays on the checklist.
 - **Not verified here:** nothing in this environment can run the workflow or the Msi; both are on the manual
   checklist.
+- **Amended by D-32 (2026-11-07):** the workflow also runs on pushes to `main` and on pull requests, and `release.yml`
+  builds the Msi for tagged releases.
+
+---
+
+## D-32 Windows build in CI and in the release workflow
+
+**Status:** Accepted (owner, 2026-11-07). Amends D-31; extends D-24.
+- `.github/workflows/windows.yml` runs on **pushes to `main`, pull requests and by hand** (was `workflow_dispatch` only),
+  so a change that breaks the Windows tests or the Msi build shows on the PR. Same job as before: `:shared:jvmTest` on
+  `windows-latest`, `packageReleaseMsi`, file checks, `suggestRuntimeModules`, the Msi as an artifact. Still no secrets
+  (fork PRs run it) and no publishing; a newer push to the same PR cancels the older run.
+- `release.yml` gets a **windows** job (`windows-latest`, after `prepare`, no secrets, unsigned per D-29): `:shared:jvmTest`
+  on Windows, `packageReleaseMsi`, upload. The draft job waits for it and passes the Msi to `scripts/release.sh ci-package
+  <apk> <dmg> <msi>`, which runs the same `check_msi` as `make release WINDOWS_MSI=…` (name, size, OLE/CFB header, version
+  in the name), copies it as `PoolPrint-<version>-windows-x64.msi` and lists it in `SHA256SUMS.txt`; `ci-draft` attaches
+  it. A tagged release built by the workflow therefore always includes Windows; a failed Windows job stops the draft.
+- `make release` on the Mac is unchanged: the Msi stays optional there (`WINDOWS_MSI=<file>` from a `windows.yml` run).
+- The Windows gate (release.md) is still the owner's install on a Windows PC before publishing the draft.
+- **Not verified here:** neither workflow has run on GitHub from this environment; the first PR/tag run shows it.
 
 ---
 

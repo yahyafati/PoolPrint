@@ -424,9 +424,9 @@ cmd_check_msi() {
     check_msi "$1"
 }
 
-# --- CI (.github/workflows/release.yml, docs/release.md Phase 9) ------------------------------------------------
+# --- CI (.github/workflows/release.yml, docs/release.md Phase 9; the Msi from its windows job, D-32) -------------
 # The same checks as `build`, split over the workflow's jobs: the APK is built on Linux, the DMG on a macOS arm64
-# runner, and the draft is created from both. Only the workflow calls these.
+# runner, the Msi on a Windows runner, and the draft is created from all three. Only the workflow calls these.
 
 # ci-check-tag <tag>: the pushed tag is v<versionName> from gradle.properties, and its commit is on origin/main.
 cmd_ci_check_tag() {
@@ -453,31 +453,43 @@ cmd_ci_check_dmg() {
     check_dmg "${1:-$DMG_BUILT_DIR/Pool Print-$MAC_VERSION.dmg}"
 }
 
-# ci-package <apk> <dmg>: build/release/<version>/ from the checked binaries, as `build` steps 6–8 do.
+# ci-package <apk> <dmg> [msi]: build/release/<version>/ from the checked binaries, as `build` steps 6–8 do. The
+# release workflow always passes the Msi from its Windows job (D-32); without it the release is Android + macOS only.
 cmd_ci_package() {
     read_version
     find_build_tools
-    [ $# -eq 2 ] || die "usage: $0 ci-package <apk> <dmg>"
+    [ $# -eq 2 ] || [ $# -eq 3 ] || die "usage: $0 ci-package <apk> <dmg> [msi]"
     [ -f "$2" ] || die "DMG not found: $2"
+    if [ $# -eq 3 ]; then
+        WINDOWS_MSI_SRC=$3
+        check_msi "$WINDOWS_MSI_SRC"
+    fi
     stage_release_files "$1" "$2" "$(git rev-parse HEAD)" 1/3 2/3 3/3
 }
 
 # ci-draft: a draft (pre-)release for the existing tag with the files from ci-package. Publishing stays manual.
 cmd_ci_draft() {
     read_version
-    local pre= f existing
+    local pre= f existing assets
     for f in "$APK_NAME" "$DMG_NAME" THIRD_PARTY_NOTICES.md SHA256SUMS.txt release-notes.md; do
         [ -f "$OUT_DIR/$f" ] || die "$OUT_DIR/$f is missing; run ci-package first."
     done
     (cd "$OUT_DIR" && shasum -a 256 -c SHA256SUMS.txt | sed 's/^/    /') || die "Checksums don't match."
+    assets=("$OUT_DIR/$APK_NAME" "$OUT_DIR/$DMG_NAME")
+    if [ -f "$OUT_DIR/$MSI_NAME" ]; then
+        grep -qF "  $MSI_NAME" "$OUT_DIR/SHA256SUMS.txt" || die "$MSI_NAME is not listed in SHA256SUMS.txt."
+        assets+=("$OUT_DIR/$MSI_NAME")
+    else
+        info "WARNING: no $MSI_NAME in $OUT_DIR; this draft will have no Windows download."
+    fi
+    assets+=("$OUT_DIR/THIRD_PARTY_NOTICES.md" "$OUT_DIR/SHA256SUMS.txt")
     # The releases API lists drafts too (the workflow's token may write), so a rerun can't make a second draft.
     existing=$(gh api "repos/{owner}/{repo}/releases" --paginate --jq ".[] | select(.tag_name == \"$TAG\") | .html_url")
     [ -z "$existing" ] || die "A GitHub release for $TAG already exists: $existing"
     if [ -n "$IS_RC" ]; then pre=--prerelease; fi
     step "Creating the draft release $TAG${pre:+ (pre-release)}"
     gh release create "$TAG" --draft $pre --verify-tag --title "Pool Print $VERSION" \
-        --notes-file "$OUT_DIR/release-notes.md" \
-        "$OUT_DIR/$APK_NAME" "$OUT_DIR/$DMG_NAME" "$OUT_DIR/THIRD_PARTY_NOTICES.md" "$OUT_DIR/SHA256SUMS.txt"
+        --notes-file "$OUT_DIR/release-notes.md" "${assets[@]}"
 }
 
 # Sourcing the script (for tests) defines the functions without running anything.
