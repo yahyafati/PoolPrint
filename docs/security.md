@@ -83,7 +83,7 @@ Decided in D-26; implemented in W1. Not verified on a real Windows machine until
 
 ### Single instance and file hand-over (Windows)
 
-Decided in D-28; implemented in W2. Explorer's "Open with" starts a new process per file, and two processes on one
+Decided in D-28; implemented in W2 (`HandOver.kt`, `DesktopStartup.kt`; real Windows behaviour is on the owner's checklist). Explorer's "Open with" starts a new process per file, and two processes on one
 DataStore file can corrupt it. So a second instance never opens the store: it hands its file to the first and exits.
 
 1. **Who is running:** the process that gets an exclusive `FileChannel` lock on `%LOCALAPPDATA%\Pool Print\instance.lock`
@@ -103,7 +103,19 @@ DataStore file can corrupt it. So a second instance never opens the store: it ha
 6. **Threat considered:** another local user or a web page connecting to the loopback port. A web page cannot read
    the token file and sends no valid token; another Windows user cannot read this user's file; and even a valid
    message can only show a print sheet for an existing PDF, never print, read or send the file. Tests (W2): wrong
-   token, garbage, non-PDF path, nonexistent path, oversized message, lock held / released.
+   token, garbage, non-PDF path, nonexistent path, relative path, oversized message, multi-line message, lock held /
+   released, stale endpoint, two-instance hand-over on loopback.
+7. **Limits as implemented:** token = 32 bytes from `SecureRandom` (64 hex characters), compared in constant time
+   (`MessageDigest.isEqual`) and checked before the path is looked at. A message is `<token> <absolute path>\n`, UTF-8,
+   one line, no control characters, at most 8 KiB; the listener reads at most one byte more than that, 2 s in total per
+   connection, one connection at a time, and never replies. Nothing in this code logs, so the token cannot reach a log.
+   The path must be absolute (the client makes it so) and pass `isPdfFile`. The new first instance deletes any
+   stale `instance.handover` before it starts listening, and the file is written to a temp name and moved into place.
+8. **Scope:** Windows only. macOS keeps one process per app through LaunchServices and receives files as open-file
+   events, so it has no lock, listener or token (command-line files are still offered, which is harmless).
+9. **If the first instance can't be reached** (lock held, no listener, e.g. a hung process): the second one retries for
+   5 s, then exits with status 1 and a message on stderr. It still never opens the store; the owner would end the
+   hung process. A second launch with no PDF (a Start-menu click while the app runs) exits quietly.
 
 ## Host-key verification (TOFU)
 

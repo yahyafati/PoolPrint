@@ -14,7 +14,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done (unit-tested) · 
 |---|---|
 | W0 — Decisions and doc changes | ✅ |
 | W1 — Platform code (key store, data folder, OS switch) | 🔶 |
-| W2 — File hand-over (picker, drop, Open With, single instance) | ⬜ |
+| W2 — File hand-over (picker, drop, Open With, single instance) | 🔶 |
 | W3 — Packaging (Msi) | ⬜ |
 | W4 — Build machine, release tooling, release gate | ⬜ |
 
@@ -104,13 +104,34 @@ the gated store test passes on Windows.
 
 ## W2 — File hand-over
 
-- ⬜ File picker: on Windows set `dialog.file = "*.pdf"` so the native dialog filters, and re-check the result
+- 🔶 File picker: on Windows set `dialog.file = "*.pdf"` so the native dialog filters, and re-check the result
   with `isPdfFile` (the filter is only a hint). Fix the "native macOS open panel" comment.
-- ⬜ `main(args)`: files passed on the command line go to `IncomingPdfs.offer(...)` before the window exists
+- ✅ `main(args)`: files passed on the command line go to `IncomingPdfs.offer(...)` before the window exists
   (what `setOpenFileHandler` does on macOS).
-- ⬜ Single-instance lock and hand-over as decided in W0, with unit tests for the lock and the message parsing
+- 🔶 Single-instance lock and hand-over as decided in W0, with unit tests for the lock and the message parsing
   (wrong token, garbage, non-PDF path, path that doesn't exist).
-- ⬜ Drag and drop from Explorer: `javaFileListFlavor` should already work; no code change expected.
+- 🔶 Drag and drop from Explorer: `javaFileListFlavor` should already work; no code change expected.
+
+**Outcome (2026-11-07):**
+- `startDesktop(os, args, incoming)` (`jvmMain/desktop/DesktopStartup.kt`) runs first in `main(args)`: command-line files go to
+  `IncomingPdfs.offer` on every OS; on Windows it takes the `instance.lock` lock (`SingleInstance`, `FileChannel.tryLock`) and
+  starts the loopback listener, or — as a second instance — sends its first PDF and returns `StartupResult.Exit`, so `main`
+  exits before `application { … }` (no DataStore, key store or network). `main.kt` only calls it and acts on the result;
+  it also raises the window when a document arrives.
+- Protocol (`HandOver.kt`): `<token> <absolute path>\n`, 256-bit hex token, 8 KiB cap, 2 s per connection, one at a time,
+  constant-time compare, no replies, no logging. Endpoint file `instance.handover` (port + token), owner-only on POSIX,
+  inherited user-only ACL on Windows. Details: [security.md](security.md#single-instance-and-file-hand-over-windows).
+- **macOS does not use it** (LaunchServices already gives one process per app; recorded in D-28). Command-line files are
+  still offered there, harmlessly.
+- Picker: `pickerFilePattern(os)` gives `"*.pdf"` on Windows only (macOS would show it as a literal name); `pickedPdf`
+  re-checks the result with `isPdfFile`. A non-PDF chosen anyway (typing `*.*` in the Windows dialog) is ignored silently:
+  `rememberPdfPicker` has no rejection channel (it is a `commonMain` `expect` shared with Android).
+- Drag and drop: no change. Explorer offers `javaFileListFlavor` like Finder, and `filesIn` / `PdfDropTarget` read it (🔶).
+- Tests: `HandOverTest` (27: protocol, listener, endpoint file, lock, two-instance hand-over) and `DesktopStartupTest` (9:
+  arguments, Windows hand-over, picker helpers). The lock was also checked across two real JVM processes on macOS
+  (the second `tryLock` returns null while the first holds it). No new library.
+- Not verified without Windows: the lock between two real processes there, Explorer's Open With (cold and warm), the
+  native dialog filter, and `window.toFront()` against Windows' foreground rules (it may only flash the taskbar button).
 
 **Acceptance:** unit tests for argument handling and the hand-over protocol; drop and picker logic unchanged and
 still tested.
@@ -168,3 +189,13 @@ uninstalling all work without admin rights.
 - [ ] W1: the app starts from `./gradlew :desktopApp:run` on Windows; data lands in `%LOCALAPPDATA%\Pool Print`; the
       key comment is `pool-print@<computer name>`.
 - [ ] Layout at the minimum window size with the in-window menu bar; dark mode; display scaling at 150 %.
+- [ ] W2: Ctrl+O dialog lists PDFs only (typing `*.*` shows all; choosing a non-PDF then does nothing).
+- [ ] W2: Open with → Pool Print, app **closed** (cold start): window opens with the print sheet for that PDF.
+- [ ] W2: Open with → Pool Print, app **open** (also minimised): no second window; the running window comes to the front with the print
+      sheet (if Windows only flashes the taskbar button, note it); Task Manager shows one Pool Print process.
+- [ ] W2: open a PDF from a path with spaces and non-ASCII characters (`C:\Users\…\Übung 3.pdf`) both ways.
+- [ ] W2: end the running app, start it again: no stale-lock problem (the lock dies with the process); `instance.lock` and
+      `instance.handover` sit in `%LOCALAPPDATA%\Pool Print`, and `instance.handover` is gone after a normal exit.
+- [ ] W2: double-click the Start-menu shortcut while the app runs: nothing visible happens (the second copy exits quietly).
+- [ ] W2: `./gradlew :shared:jvmTest --tests '*HandOver*' --tests '*DesktopStartup*'` passes on Windows (real loopback sockets
+      and the real file lock).

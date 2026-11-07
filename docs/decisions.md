@@ -509,6 +509,9 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
 - **Rejected:** a named pipe or a Windows message hook (more JNA, harder to test), and allowing several instances
   (store corruption).
 - **Scope:** Windows only. macOS already has one process per app and delivers files through the open-file handler.
+- **Implemented in W2 (2026-11-07):** `HandOver.kt` / `DesktopStartup.kt`, no new library. A second launch that carries no PDF exits
+  quietly (the protocol has no "focus" message, by design); if the first instance can't be reached within 5 s the second exits
+  with status 1 and a stderr message, still without opening the store.
 
 ## D-29 Windows code signing: unsigned for now
 

@@ -178,16 +178,37 @@ sealed interface SshError {
   home folder and environment as arguments, so they are unit-tested on any OS.
 - `PoolPrintMenuBar(os, …)` uses ⌘ (meta) on macOS and Ctrl on Windows.
 
+### Desktop file hand-over (`jvmMain/desktop`, W2)
+
+- `main(args)` calls `startDesktop(os, args, incoming)` before any window, DataStore or key store exists. Files named on
+  the command line go to `IncomingPdfs.offer` (every OS; macOS gets none, its Open With arrives as an event). On
+  **Windows only** (D-28) it also enforces one running instance:
+  - `SingleInstance.tryAcquire(dataDir)` takes an exclusive `FileChannel` lock on `instance.lock` (`DesktopStartup.kt`).
+    The first instance then runs `HandOverListener` (`HandOver.kt`): a loopback-only `ServerSocket`, one bounded
+    connection at a time, and publishes port + token in `instance.handover` (`HandOverEndpoint`).
+  - A later instance gets no lock, so `HandOverClient` sends its first PDF path with the token (retrying for up to 5 s
+    while the first one starts) and `main` exits with `StartupResult.Exit` — it never reaches `application { … }`,
+    so nothing opens the DataStore, the Credential Manager or the network.
+  - The listener hands accepted paths to `IncomingPdfs`, so they take the same route as a drop. `main.kt` brings the
+    window to the front when a document arrives. Protocol and limits: [security.md](security.md#single-instance-and-file-hand-over-windows).
+  - macOS stays without this: LaunchServices already runs one process per app (D-28 scope).
+- Windows has no `setOpenFileHandler`; `installOpenFileHandler()` returns false there and the command line plus the
+  hand-over replace it.
+- Drag and drop needs no change for Explorer: it offers `DataFlavor.javaFileListFlavor` like Finder, which `filesIn`
+  reads (🔶 checked by hand on Windows).
+
 ### macOS desktop (`:desktopApp` + `jvmMain`)
 
-- File picker: AWT `FileDialog`, which looks native on macOS, filtered to `.pdf`.
+- File picker: AWT `FileDialog`, the native open panel on macOS (and on Windows). `FilenameFilter` is honoured on macOS
+  only; on Windows `dialog.file = "*.pdf"` is what filters the dialog (`pickerFilePattern`). The result is re-checked
+  with `isPdfFile` on both (`pickedPdf`), because a filter is only a hint.
 - Drag and drop onto the window: `PdfDropTarget` (Compose `dragAndDropTarget`, reads the AWT file list).
   It shows a hint while a file hovers and a short message when the drop holds no PDF.
 - "Open With": `java.awt.Desktop.setOpenFileHandler` and `CFBundleDocumentTypes` for `com.adobe.pdf`
   (rank `Alternate`, so Preview stays the default) in the app's `Info.plist`, through
   `compose.desktop.application.nativeDistributions.macOS.infoPlist`. `main()` installs the handler before
   the window exists (macOS queues earlier open-file events until then).
-- `IncomingPdfs` (`jvmMain/desktop`) is the one inbox for dropped files, Open With and ⌘O. It keeps the
+- `IncomingPdfs` (`jvmMain/desktop`) is the one inbox for dropped files, Open With, the command line, hand-overs and ⌘O / Ctrl+O. It keeps the
   latest PDF (first PDF of several files) as a `StateFlow`; `main.kt` passes it to `App(incomingDocument = …)`.
   `App` drops a document that arrives while a job is uploading or waiting for host-key trust.
 - Menu bar: `PoolPrintMenuBar` (File → Open PDF… ⌘O / Ctrl+O, Print ⌘P / Ctrl+P). ⌘P goes through `AppCommands`

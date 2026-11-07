@@ -93,13 +93,14 @@ deliberately no way to continue.
 
 - Top bar "Pool Print" with a "Ready" status mark.
 - "Print a PDF", "Share one from any app, or pick it here.", **Pick a PDF** (Android, macOS and Windows; on the desktop a PDF can
-  also be dropped anywhere on the window, and ⌘O (macOS) / Ctrl+O (Windows) opens the file dialog).
+  also be dropped anywhere on the window, and ⌘O (macOS) / Ctrl+O (Windows) opens the file dialog; on Windows the dialog lists PDFs only).
 - Rows: **Queue** (See what's printing), **Presets** (n saved), **Settings** (username · key, server, printers).
 - Footer: how many printers are known and when the list was last fetched.
 
 ### Print sheet (P09–P14, main flow)
 
-Opens when a PDF arrives (share, pick, drop, Open With). A × closes it; **Queue** opens the queue and returns to
+Opens when a PDF arrives (share, pick, drop, Open With). On Windows, "Open with → Pool Print" on a running app
+brings its window to the front with this sheet (a second process hands the file over and exits, D-28); nothing prints until Print is pressed. A × closes it; **Queue** opens the queue and returns to
 the sheet with its options intact.
 
 ```
