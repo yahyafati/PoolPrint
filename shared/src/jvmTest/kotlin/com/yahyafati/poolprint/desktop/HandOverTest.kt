@@ -345,7 +345,12 @@ class HandOverTest {
         val received = CopyOnWriteArrayList<File>()
         val first = assertNotNull(SingleInstance.tryAcquire(dir)).also { closeables += it }
         first.listen { received += it }
-        val relative = File(pdf("rel.pdf").absoluteFile.relativeTo(File("").absoluteFile).path)
+        // Under the working directory, so a relative path exists even when the temp dir is on another drive (Windows CI).
+        val local = Files.createTempDirectory(File("").absoluteFile.toPath(), "handover-rel").toFile()
+        closeables += AutoCloseable { local.deleteRecursively() }
+        File(local, "rel.pdf").writeBytes("%PDF-1.4".toByteArray())
+        val relative = File(local.name, "rel.pdf")
+        assertFalse(relative.isAbsolute)
         assertTrue(HandOverClient.send(dir, relative))
         waitFor { received.isNotEmpty() }
         assertTrue(received.single().isAbsolute)

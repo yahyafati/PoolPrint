@@ -339,7 +339,7 @@ is the gate. The port is complete in code, build tooling and docs once that chec
 - ✅ Strings: no user-facing string in `commonMain` mentions Mac, Finder, the Keychain or ⌘, so only the shortcuts needed
   to become OS-aware; [ux.md](ux.md) and [architecture.md](architecture.md) now name both OSes.
 
-**Acceptance:** `:shared:jvmTest` passes on macOS **and** on Windows (the MINA SSHD transport tests run unchanged); the
+**Acceptance:** `:shared:jvmTest` passes on macOS **and** on Windows (the MINA SSHD transport tests run unchanged; on Windows the test server runs commands through Git for Windows' `sh.exe`, as the real server uses a POSIX shell); the
 gated store test passes on Windows.
 
 ### W2 — File hand-over 🔶 (2026-11-07)

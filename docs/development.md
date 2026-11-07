@@ -70,7 +70,7 @@ Versions live in `gradle/libs.versions.toml`; reference them through `libs.*`.
 | Core logic | Command builder, quoting, validation, cost estimator, parsers | `commonTest` | `kotlin.test` |
 | Security | Injection payloads for every field; quoting round-trip through `/bin/sh` | `commonTest` and `jvmTest` | Parameterised tests |
 | Flows and view models | Onboarding, test connection, print, discovery fallback, queue/cancel | `commonTest` | `FakeSshClient` |
-| Real SSH implementation | Exec, stdin streaming, host-key callback, auth-method restrictions | `jvmTest` (or `jvmCommonTest`) | In-process SSH server (Apache MINA SSHD, test-only) |
+| Real SSH implementation | Exec, stdin streaming, host-key callback, auth-method restrictions | `jvmTest` (or `jvmCommonTest`) | In-process SSH server (Apache MINA SSHD, test-only; exec runs through a POSIX `sh`, on Windows Git for Windows' `sh.exe`, skipped without one) |
 | Platform | Keystore encryption, PdfRenderer, intents | `androidHostTest` / device tests | Robolectric if needed |
 | Real server | Everything remote | Manual | Roadmap checklists |
 
