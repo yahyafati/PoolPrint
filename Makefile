@@ -1,6 +1,9 @@
 # Pool Print: common tasks. `make help` lists them.
 #
 # Release is the default everywhere. Add `BUILD=debug` for debug variants, e.g. `make install-phone BUILD=debug`.
+# Release APKs are signed with the release key when the poolprint.signing.* keys are in local.properties
+# (docs/release.md, Phase 1); without them they fall back to the debug key, with a warning: fine for your own
+# devices, not for distribution.
 # Several devices attached? Pick one with `make install-phone DEVICE=<serial>` (see `make devices`).
 
 BUILD ?= release

@@ -137,21 +137,22 @@ Two things to know about `local.properties`:
 
 ### 1.4 🤖 Wire it into the build
 
-Agent tasks:
+Agent tasks (✅ done 2026-11-07; a partial setup or a missing keystore file fails the build with the key
+names, never the values):
 
-- [ ] `androidApp/build.gradle.kts`: add a `release` signing config that reads the four `poolprint.signing.*` keys
+- [x] `androidApp/build.gradle.kts`: add a `release` signing config that reads the four `poolprint.signing.*` keys
       from the root project's `local.properties`, falling back to the matching `POOLPRINT_SIGNING_*` environment
       variables (for CI). Gradle doesn't load `local.properties` on its own, so `providers.gradleProperty(...)` won't
       see these keys. Read the file through `providers.fileContents(rootProject.layout.projectDirectory.file("local.properties"))`
       and `java.util.Properties`, so the configuration cache tracks it as an input; read the environment variables
       with `providers.environmentVariable(...)`.
-- [ ] Never log, print or echo the password values, and don't read them back while checking the change. Test the
+- [x] Never log, print or echo the password values, and don't read them back while checking the change. Test the
       "missing" path by building without the keys, e.g. in a worktree.
-- [ ] If the properties are missing, keep signing `release` with the debug key so `make install-phone` still works
+- [x] If the properties are missing, keep signing `release` with the debug key so `make install-phone` still works
       for contributors, and print a Gradle warning ("release APK is debug-signed, not for distribution").
       The release script (Phase 4) refuses to package a debug-signed APK.
-- [ ] `.gitignore`: add `*.jks`, `*.keystore`, `keystore.properties`.
-- [ ] Update the comment and docs that say release is signed with the debug keystore (`CLAUDE.md`, `Makefile`
+- [x] `.gitignore`: add `*.jks`, `*.keystore`, `keystore.properties`.
+- [x] Update the comment and docs that say release is signed with the debug keystore (`CLAUDE.md`, `Makefile`
       header, `development.md`).
 
 ### 1.5 👤 Record the certificate fingerprint

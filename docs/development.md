@@ -41,6 +41,13 @@ Rules for anyone working on this repo: human contributors and AI coding agents. 
 | Standalone test SSH server (emulator at `10.0.2.2:2222`) | `./gradlew :shared:runTestSshServer` |
 | macOS Keychain test (touches the real login keychain) | `POOLPRINT_KEYCHAIN_TEST=1 ./gradlew :shared:jvmTest --tests '*MacKeychain*'` |
 
+**Release signing (Android).** `release` builds are signed with the release key when the four
+`poolprint.signing.*` keys are in the root `local.properties` (or the `POOLPRINT_SIGNING_*` environment variables
+are set, for CI); see [release.md](release.md#phase-1--android-release-signing-key). Without them, `release` falls
+back to the debug key and Gradle warns "Release APK is debug-signed, not for distribution": fine for your own
+devices, refused by the release script. A partial setup or a missing keystore file fails the build. Never print,
+log or commit the signing values; `*.jks`, `*.keystore` and `keystore.properties` are git-ignored.
+
 The configuration cache and build cache are on, so build logic must stay configuration-cache compatible.
 Versions live in `gradle/libs.versions.toml`; reference them through `libs.*`.
 

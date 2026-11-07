@@ -238,4 +238,7 @@ notes and a clear "vibe-coded, provided as is" notice. The phases, owner/agent s
 - ✅ Phase 0 — decisions (2026-11-07): public repo after the Phase 3 scan, MIT, SemVer with `-rc.N` pre-releases,
   ad-hoc macOS signing, arm64 only, built on the owner's Mac, Phase 6.2 blocking list as the gate, no update
   check (D-22, D-23).
-- ⬜ Phase 1 — Android release signing key (next).
+- 🔶 Phase 1 — Android release signing key: keystore created (owner); release signing wired into
+  `androidApp/build.gradle.kts` from `local.properties` / `POOLPRINT_SIGNING_*` with a warned debug-key fallback,
+  keystore files git-ignored (2026-11-07). Left: owner records the certificate fingerprint (1.5) and switches
+  their devices over (1.6).

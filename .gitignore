@@ -17,3 +17,7 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
+# Signing keys and their settings never go into git (docs/release.md, Phase 1)
+*.jks
+*.keystore
+keystore.properties
