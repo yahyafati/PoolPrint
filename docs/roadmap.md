@@ -11,7 +11,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done (unit-tested) · 
 | M2 — Options & cost | 🔶 |
 | M3 — Discovery, presets, queue | 🔶 |
 | M4 — macOS polish | 🔶 |
-| R1 — First sideloaded GitHub release (v1.0.0) | 🟨 |
+| R1 — First sideloaded GitHub release (v1.0.0) | 🔶 |
 
 ---
 
@@ -263,8 +263,8 @@ notes and a clear "vibe-coded, provided as is" notice. The phases, owner/agent s
   Manual: 👤 open Settings → About once on Android and macOS and check the label reads "Pool Print 1.0.0-rc.1".
 - 🟨 Phase 3 — repository ready to go public: agent part done 2026-11-07 (history scan: no secrets, two privacy
   items for the owner; `LICENSE`, `THIRD_PARTY_NOTICES.md`, README top with notice/Download/Install, `SECURITY.md`,
-  bug-report template, licence and notices rows in Settings → About). Waiting for 👤 review of the scan, licence and
-  README, then the visibility switch.
+  bug-report template, licence and notices rows in Settings → About). The repository is public (2026-11-07).
+  Left: 👤 enable private vulnerability reporting and secret scanning.
 - ✅ Phase 4 — release script (2026-11-07): `make release` (`scripts/release.sh build`) refuses a dirty tree or an
   existing tag, runs `make test-all`, builds the APK and DMG, checks the APK certificate against the release
   SHA-256 and its version, mounts the DMG and checks the bundle (identifier, arm64, signature, version), and writes
@@ -276,5 +276,8 @@ notes and a clear "vibe-coded, provided as is" notice. The phases, owner/agent s
 - ✅ Phase 6 — release gate (2026-11-07): the downloaded `v1.0.0-rc.1` and `rc.2` install like a user's copy, every
   blocking check passes, and rc.2 installs over rc.1. Ticked in the M1–M4 checklists above; what's still open there
   goes into the 1.0.0 known limitations. Next: 🤖 Phase 7, prepare `1.0.0`.
-- 🟨 Phase 7 — publish v1.0.0: 🤖 prepared 2026-11-07 (version `1.0.0` / `versionCode 4`, README status, notes with
-  the known limitations). Waiting for 👤 `make release`, `make release-draft` and publishing.
+- ✅ Phase 7 — publish v1.0.0 (2026-11-07): [`v1.0.0`](https://github.com/yahyafati/PoolPrint/releases/tag/v1.0.0) is
+  the latest release, tagged on `58f0ab2` (`versionCode 4`), with the APK, DMG, notices and `SHA256SUMS.txt`
+  (checksums match GitHub's); the notes list the known limitations.
+- 🟨 Phase 8 — after the release (2026-11-07): release page, downloads and linked files load without a GitHub
+  login. Left: 👤 optionally tell people. Later releases follow the patch routine in release.md.

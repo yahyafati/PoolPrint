@@ -43,12 +43,12 @@ Facts from the repo that shape this plan:
 | [0](#phase-0--decisions) | ✅ Decide visibility, licence, versioning, macOS signing, architectures, release gate | 👤 |
 | [1](#phase-1--android-release-signing-key) | ✅ Create and back up the Android release key; wire it into Gradle | 👤 key · 🤖 Gradle |
 | [2](#phase-2--one-version-number) | ✅ One version source for both apps; show the version in Settings | 🤖 |
-| [3](#phase-3--repository-ready-to-go-public) | 🟨 Secret scan, licence, third-party notices, README install guide (🤖 done, 👤 review pending) | 🤖 prepare · 👤 approve |
+| [3](#phase-3--repository-ready-to-go-public) | 🟨 Secret scan, licence, third-party notices, README install guide (repo public; 👤 code-security settings pending) | 🤖 prepare · 👤 approve |
 | [4](#phase-4--release-script) | ✅ `make release`: tests, signed APK, DMG, checks, checksums, notes draft | 🤖 |
 | [5](#phase-5--release-candidate) | ✅ Build `v1.0.0-rc.1`, put it on a draft/pre-release | 👤🤖 |
 | [6](#phase-6--test-the-candidate-release-gate) | ✅ Install the downloaded RC on real devices; run the release gate | 👤 |
-| [7](#phase-7--publish-v100) | 🟨 Tag and publish `v1.0.0` (🤖 prepared, 👤 build and publish pending) | 👤🤖 |
-| [8](#phase-8--after-the-release) | Verify, update docs, patch-release routine | 👤🤖 |
+| [7](#phase-7--publish-v100) | ✅ Tag and publish `v1.0.0` | 👤🤖 |
+| [8](#phase-8--after-the-release) | 🟨 Verify, update docs, patch-release routine (🤖 done; 👤 optional announcement) | 👤🤖 |
 | [9](#phase-9-optional--automate-with-github-actions) | *(optional)* Build releases in GitHub Actions | 🤖 workflow · 👤 secrets |
 
 ---
@@ -229,8 +229,8 @@ Not yet looked at on screen: the About row itself (👤 open Settings once on ea
 
 ## Phase 3 — Repository ready to go public
 
-🤖 **Agent prepares**, 👤 **owner reviews and approves.** 🤖 part done 2026-11-07, waiting for the owner review
-([scan results](#secret-scan-results-2026-11-07)).
+🤖 **Agent prepares**, 👤 **owner reviews and approves.** 🤖 part done 2026-11-07 ([scan results](#secret-scan-results-2026-11-07));
+the owner made the repository public the same day. Still off: private vulnerability reporting and secret scanning.
 
 - [x] **Secret and privacy scan of the whole history**, not just `HEAD`: private-key headers
       (`BEGIN … PRIVATE KEY`, `openssh-key-v1`), `.jks`/`.keystore` files, `local.properties`, your real pool username,
@@ -255,8 +255,11 @@ Not yet looked at on screen: the About row itself (👤 open Settings once on ea
       reminder never to post keys, usernames or fingerprints in issues.
 - [x] **Bug-report issue template** asking for app version, platform/OS version, what happened, and the error's
       *details* text, with the same privacy reminder.
-- [ ] 👤 After reviewing the scan: GitHub → *Settings → General → Danger Zone → Change visibility → Public*. Then
-      *Settings → Code security*: enable **private vulnerability reporting** and **secret scanning**.
+- [x] 👤 After reviewing the scan: GitHub → *Settings → General → Danger Zone → Change visibility → Public*.
+      *(Public by 2026-11-07.)*
+- [ ] 👤 Then *Settings → Code security*: enable **private vulnerability reporting** and **secret scanning**.
+      *(Both still disabled on 2026-11-07, checked with the GitHub API. Until reporting is on, the private
+      route in `SECURITY.md` and the issue template's contact link doesn't work.)*
 
 **What landed (2026-11-07).** `LICENSE` (MIT, © 2026 Yahya Fati). `THIRD_PARTY_NOTICES.md`, built from the release
 runtime classpaths of both apps: component table per app, the NOTICE texts of sshj, PDFBox, FontBox, PDFBox io and
@@ -431,7 +434,8 @@ key, and `make release-draft` against GitHub (👤 Phase 5).
 published pre-release, tagged on `b80b3b6`, the commit the files were built from. It has the APK, the DMG,
 `THIRD_PARTY_NOTICES.md` and `SHA256SUMS.txt`; GitHub's SHA-256 for each binary matches `SHA256SUMS.txt`. The notes
 are the edited ones (What's new as a feature list; Known limitations from the roadmap and the owner's Android test).
-The repository is still **private**, so only collaborators can see the release until the Phase 3 visibility switch.
+The repository was still **private** then, so only collaborators could see the release; it went public before 1.0.0
+(Phase 3).
 
 ---
 
@@ -499,15 +503,15 @@ question 1 stay open). Every non-blocking check still open in the roadmap goes i
       pre-written in `build/release/1.0.0/release-notes.md`, which `make release` keeps: known limitations are every
       non-blocking roadmap check still open after Phase 6. 👤 Review them and delete their `<!-- Edit:` line before
       `make release-draft`.)*
-- [ ] 👤 Build and draft:
+- [x] 👤 Build and draft:
       ```bash
       make release
       ```
       ```bash
       make release-draft
       ```
-- [ ] 👤 On GitHub: review the draft, **untick** pre-release, tick **Set as the latest release**, Publish.
-- [ ] 👤 Pull the tag GitHub created, so your checkout knows it:
+- [x] 👤 On GitHub: review the draft, **untick** pre-release, tick **Set as the latest release**, Publish.
+- [x] 👤 Pull the tag GitHub created, so your checkout knows it:
       ```bash
       git pull --tags
       ```
@@ -552,13 +556,22 @@ Install steps: see the README → Install. Off campus you need the university VP
 
 **Done when:** `https://github.com/yahyafati/PoolPrint/releases/latest` shows 1.0.0 with all files.
 
+✅ **Done 2026-11-07.** [`v1.0.0`](https://github.com/yahyafati/PoolPrint/releases/tag/v1.0.0) is published as the
+latest release (not a pre-release), tagged on `58f0ab2`, the commit the files were built from (`versionCode 4`). It
+has the APK, the DMG, `THIRD_PARTY_NOTICES.md` and `SHA256SUMS.txt`; GitHub's SHA-256 for each file matches
+`SHA256SUMS.txt`. The notes are the prepared ones (feature list, known limitations from the roadmap).
+
 ---
 
 ## Phase 8 — After the release
 
-- [ ] 👤 From a logged-out browser (if public): the release page, downloads and README links work.
-- [ ] 🤖 Roadmap: R1 → ✅ (or 🔶 with what's left); release certificate fingerprint filled in above; the
+- [x] 👤 From a logged-out browser (if public): the release page, downloads and README links work.
+      *(2026-11-07, checked by the agent without a GitHub login: `releases/latest`, the APK download, and the
+      LICENSE, notices and advisory links used by the README, `SECURITY.md` and Settings → About all answer.)*
+- [x] 🤖 Roadmap: R1 → ✅ (or 🔶 with what's left); release certificate fingerprint filled in above; the
       `poolprint.versionName` on `main` bumped to the next development version if you like (e.g. `1.0.1`).
+      *(2026-11-07: R1 → 🔶, left: the two code-security settings. The version stays `1.0.0`; the next release
+      bumps it per the [patch routine](#patch-release-routine), and `make release` refuses to rebuild `1.0.0`.)*
 - [ ] 👤 Optional: tell people (Fachschaft channel, friends). Ask them to report problems as GitHub issues, with
       the error *details* text and without usernames.
 
