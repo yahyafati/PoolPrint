@@ -1,11 +1,43 @@
 # Pool Print
 
+> ⚠️ **Vibe-coded, use at your own risk.** This app was written largely by AI coding agents and has not been
+> audited. It is shared **as is, without any warranty or guarantee**: it may contain bugs, misprint, waste
+> print budget, or mishandle your SSH key. You alone are responsible for using it on your pool account.
+> Unofficial; not affiliated with the University of Freiburg, the TF pool administration or the Fachschaft.
+
 Print PDFs on the **Uni Freiburg TF computer-pool printers** from your Android phone or Mac in a few
 taps, without opening a terminal.
 
-> **Status: in development.** Milestone 1 (onboarding, test connection, share/pick a PDF, print with
-> printer and copies) is implemented and unit-tested, but not yet checked against the real pool server.
-> The other features below are planned; see [docs/roadmap.md](docs/roadmap.md) for progress.
+> **Status: preparing the first release (1.0.0).** All planned features (milestones 1–4) are built and
+> unit-tested. Parts of them have not been checked against the real pool server yet; each release's notes list
+> what is known not to work or not yet verified. Progress: [docs/roadmap.md](docs/roadmap.md).
+
+## Download
+
+**[Latest release](https://github.com/yahyafati/PoolPrint/releases/latest)**: an APK for Android and a `.dmg`
+for macOS on Apple Silicon, with SHA-256 checksums. There is no app store version and no automatic update
+check; to hear about new versions, use *Watch → Custom → Releases* on this repository.
+
+## Install
+
+**Android (10 or newer)**
+1. On the phone, open the latest release and download `PoolPrint-<version>-android.apk`.
+2. Open it. Android asks to allow installing from this source (browser or Files): allow it for that app.
+3. If Play Protect says it doesn't recognise the developer, choose *More details → Install anyway*.
+4. Optional: compare the certificate fingerprint in the release notes.
+
+**macOS (12 or newer, Apple Silicon)**
+1. Download `PoolPrint-<version>-macos-arm64.dmg`, open it, drag **Pool Print** to **Applications**.
+2. Open it once. macOS says it can't verify the app: click *Done*, then *System Settings → Privacy & Security →*
+   **Open Anyway** next to "Pool Print", and confirm. (macOS 14 and older: right-click the app → *Open*.)
+3. After an update, macOS may ask whether Pool Print may use its Keychain item: choose **Always Allow**.
+
+**Updating:** download the newer file and install over the old one. Your key and settings stay. Don't uninstall
+first on Android: that deletes the device key and you'd have to onboard again.
+
+Then set up your key once: see [Setup](#setup-key-onboarding). Off campus you need the university VPN.
+
+## What it does
 
 Pool Print wraps the pool's official SSH printing procedure:
 
@@ -16,7 +48,8 @@ cat file.pdf | ssh <POOL_USERNAME>@login.informatik.uni-freiburg.de "lpr -P tfpp
 and adds a friendly UI, full control over the printing options, and a cost estimate before you print.
 
 - 📲 **Share to print:** share a PDF from any Android app, or drop it onto the Mac window.
-- 🔑 **Key-only login:** the app generates an SSH key. Your pool password is never asked for or stored.
+- 🔑 **Key-only login:** the app generates an SSH key per device. Your pool password is never stored; it's
+  only asked for if you let the app add its key for you during setup, and used once for that.
 - 🖨️ **All the options:** printer, copies, page ranges, duplex, pages per sheet, orientation, fit to page,
   paper size, plus printer-specific options read from the server.
 - 💶 **Know the cost up front:** `Print · 12 pages · 0.60 €` (5 ct b/w, 10 ct colour, from your 6 € monthly budget).
@@ -71,6 +104,9 @@ You need a TF pool account and a way to log in to it **once** to install the key
    echo 'ssh-ed25519 AAAA… pool-print@your-device' >> ~/.ssh/authorized_keys
    chmod 600 ~/.ssh/authorized_keys
    ```
+   Or let the app do it: **Add it for me with my pool password** logs in once with your password, appends
+   the key and forgets the password (it is not saved). Already printing from another device? Paste the new
+   key there under **Settings → Add a device** instead.
 4. Back in the app, check the server fingerprint and accept it. To compare, on a machine that already
    trusts the server, run:
    ```bash
@@ -127,8 +163,8 @@ Build the `.dmg` installer:
 ./gradlew :desktopApp:packageDmg
 ```
 
-The output goes to `desktopApp/build/compose/binaries/main/dmg/`. The app is unsigned, so on first launch
-macOS will ask you to confirm opening it (right-click → Open). On the Mac you can drag a PDF onto the
+The output goes to `desktopApp/build/compose/binaries/main/dmg/`. The app is only ad-hoc signed, so a
+downloaded copy needs **Open Anyway** on first launch (see [Install](#install)). On the Mac you can drag a PDF onto the
 window, use Finder's Open With → Pool Print, or press ⌘O; ⌘P prints from the print sheet.
 
 ### Tests
@@ -176,7 +212,22 @@ docs/          design documentation
 Pool Print has no analytics, telemetry or crash reporting, and it only talks to
 `login.informatik.uni-freiburg.de`. Your SSH key stays on your device.
 
+## Licence
+
+[MIT](LICENSE) © Yahya Fati. The apps also contain third-party libraries under their own licences:
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## Security
+
+Found a vulnerability? Report it privately, see [SECURITY.md](SECURITY.md). Never post keys, pool usernames or
+fingerprints in public issues.
+
 ## Disclaimer
+
+Pool Print is **vibe-coded**: written largely by AI coding agents, and not audited by anyone. It is provided
+**as is, without any warranty or guarantee** (see the [licence](LICENSE)). It may contain bugs, misprint, waste
+print budget, or mishandle your SSH key; you alone are responsible for using it on your pool account. Nobody
+promises support, fixes or timelines.
 
 This is an unofficial student project. It isn't affiliated with the University of Freiburg, the TF
 pool administration or the Fachschaft. The printing procedure it uses is the one described at

@@ -43,7 +43,7 @@ Facts from the repo that shape this plan:
 | [0](#phase-0--decisions) | ✅ Decide visibility, licence, versioning, macOS signing, architectures, release gate | 👤 |
 | [1](#phase-1--android-release-signing-key) | ✅ Create and back up the Android release key; wire it into Gradle | 👤 key · 🤖 Gradle |
 | [2](#phase-2--one-version-number) | ✅ One version source for both apps; show the version in Settings | 🤖 |
-| [3](#phase-3--repository-ready-to-go-public) | Secret scan, licence, third-party notices, README install guide | 🤖 prepare · 👤 approve |
+| [3](#phase-3--repository-ready-to-go-public) | 🟨 Secret scan, licence, third-party notices, README install guide (🤖 done, 👤 review pending) | 🤖 prepare · 👤 approve |
 | [4](#phase-4--release-script) | `make release`: tests, signed APK, DMG, checks, checksums, notes draft | 🤖 |
 | [5](#phase-5--release-candidate) | Build `v1.0.0-rc.1`, put it on a draft/pre-release | 👤🤖 |
 | [6](#phase-6--test-the-candidate-release-gate) | Install the downloaded RC on real devices; run the release gate | 👤 |
@@ -118,7 +118,7 @@ Add to the repo's **`local.properties`** (the file next to `settings.gradle.kts`
 in `.gitignore`, so it never gets committed. Not `gradle.properties`: that one is checked in.
 
 ```properties
-poolprint.signing.storeFile=/Users/yahyahaji/keys/poolprint-release.jks
+poolprint.signing.storeFile=/Users/<you>/keys/poolprint-release.jks
 poolprint.signing.storePassword=<password>
 poolprint.signing.keyAlias=poolprint
 poolprint.signing.keyPassword=<password>
@@ -229,33 +229,82 @@ Not yet looked at on screen: the About row itself (👤 open Settings once on ea
 
 ## Phase 3 — Repository ready to go public
 
-🤖 **Agent prepares**, 👤 **owner reviews and approves.**
+🤖 **Agent prepares**, 👤 **owner reviews and approves.** 🤖 part done 2026-11-07, waiting for the owner review
+([scan results](#secret-scan-results-2026-11-07)).
 
-- [ ] **Secret and privacy scan of the whole history**, not just `HEAD`: private-key headers
+- [x] **Secret and privacy scan of the whole history**, not just `HEAD`: private-key headers
       (`BEGIN … PRIVATE KEY`, `openssh-key-v1`), `.jks`/`.keystore` files, `local.properties`, your real pool username,
       real `lpq` owners, IP addresses. If the agent may install a tool, `gitleaks detect --log-opts="--all"` is the
       quick way; otherwise `git log -p --all | grep -nE '…'`. The agent reports findings; **you** decide whether
       anything needs a history rewrite (that would be done before going public).
       *(The server host-key fingerprint in `decisions.md`, open question 5, is public server information and fine.)*
-- [ ] **`LICENSE`**: the MIT licence (0.2, D-22), copyright holder Yahya Fati, and a licence line in the README.
-- [ ] **`THIRD_PARTY_NOTICES.md`**: the libraries that ship inside the APK/DMG and their licences (sshj, BouncyCastle,
+- [x] **`LICENSE`**: the MIT licence (0.2, D-22), copyright holder Yahya Fati, and a licence line in the README.
+- [x] **`THIRD_PARTY_NOTICES.md`**: the libraries that ship inside the APK/DMG and their licences (sshj, BouncyCastle,
       PDFBox, JNA, kotlinx, AndroidX/Compose, and what the release build actually bundles; test-only MINA SSHD is not
       shipped). Apache-2.0 requires passing on their licence and NOTICE texts with binary redistributions. Attach it
       to every release.
-- [ ] **"Vibe-coded, as is" notice**, worded like the box in the [release notes template](#release-notes-template),
+- [x] **"Vibe-coded, as is" notice**, worded like the box in the [release notes template](#release-notes-template),
       in three places: right under the README title (before any feature list or download link), at the top of
       every release's notes, and in the app's **Settings → About** next to the version (Phase 2), with a link to the
       licence. The MIT licence's own no-warranty clause is the legal part; this notice is the
       plain-language one people actually read. Extend the README's existing *Disclaimer* section to match.
-- [ ] **README rewrite of the top**: real status, a **Download** link to
+- [x] **README rewrite of the top**: real status, a **Download** link to
       `https://github.com/yahyafati/PoolPrint/releases/latest`, and an **Install** section (text below). Building
       from source moves further down.
-- [ ] **`SECURITY.md`** (short): how to report a vulnerability privately (GitHub's *Report a vulnerability*), and a
+- [x] **`SECURITY.md`** (short): how to report a vulnerability privately (GitHub's *Report a vulnerability*), and a
       reminder never to post keys, usernames or fingerprints in issues.
-- [ ] **Bug-report issue template** asking for app version, platform/OS version, what happened, and the error's
+- [x] **Bug-report issue template** asking for app version, platform/OS version, what happened, and the error's
       *details* text, with the same privacy reminder.
 - [ ] 👤 After reviewing the scan: GitHub → *Settings → General → Danger Zone → Change visibility → Public*. Then
       *Settings → Code security*: enable **private vulnerability reporting** and **secret scanning**.
+
+**What landed (2026-11-07).** `LICENSE` (MIT, © 2026 Yahya Fati). `THIRD_PARTY_NOTICES.md`, built from the release
+runtime classpaths of both apps: component table per app, the NOTICE texts of sshj, PDFBox, FontBox, PDFBox io and
+Commons Logging, and the MIT, BSD-3-Clause and Apache-2.0 texts; JNA is used under Apache-2.0, and the bundled
+OpenJDK 21 runtime keeps its own `legal/` folder inside the app. **Re-check it whenever a dependency changes** (the
+commands are at its top). The vibe-coded box is under the README title, and in Settings → About the line now reads
+like the release-notes box, with **MIT licence** and **Third-party notices** rows that open the files on GitHub in
+the browser. README: notice, real status, Download, Install (the draft below), What it does; the Setup section now
+mentions the password key install (D-20) and *Settings → Add a device*; new Licence and Security sections; the
+Disclaimer extended. `SECURITY.md`, `.github/ISSUE_TEMPLATE/bug_report.yml` (version, platform, OS, what
+happened, error *Details*, a required privacy checkbox) and `config.yml` (links to private reporting).
+Not looked at on screen yet: the two new About rows (👤 tap each once on Android and macOS; they need the repo to be
+public to show the files).
+
+### Secret-scan results (2026-11-07)
+
+Scope: every commit reachable from any ref (29 commits: `main`, the three merged feature branches, `origin/main`;
+no tags, no stashes), including the 8 `main` commits not pushed yet. gitleaks isn't installed, so this was
+`git log -p --all` searched with patterns, plus the list of every file name ever committed.
+
+Nothing that needs a history rewrite for **secrets**:
+
+| Looked for | Result |
+|---|---|
+| Private keys (`BEGIN … PRIVATE KEY`, `openssh-key-v1` and its base64 form) | Only this file's pattern list and the key-encoding code that writes the header at runtime. |
+| `.jks` / `.keystore` / `.p12` / `.pem` / `id_*` / `known_hosts` / `local.properties` files | Never committed. `.gitignore` covers `local.properties`, `*.jks`, `*.keystore`, `keystore.properties`. |
+| Passwords, tokens, API keys | Signing values only as `<password>` placeholders; test-server passwords (`secret`, `correct horse`, `p4ss`) are fixtures. No GitHub/AWS/Google token formats. |
+| Pool usernames, `lpq` owners | Only `jdoe`, `doej`, `muster`; public keys only as the `ssh-ed25519 AAAA…` placeholder. |
+| IP addresses | `10.0.2.2` (emulator) and `127.0.0.1` only. |
+| Fingerprints | Server host key `SHA256:N0jI…` (public, fine), two synthetic test values, and the release certificate SHA-256 (published on purpose). |
+| Image files | No embedded metadata (paths, author, e-mail). |
+
+👤 **For you to decide** (privacy, not secrets):
+
+1. **Your e-mail address is the author address of all 29 commits** and becomes public with the repo. Keep it, or
+   rewrite the authors to your GitHub `noreply` address before going public (changes every commit hash). Either
+   way, consider committing with the noreply address from now on and turning on GitHub's *Block command line
+   pushes that expose my email*.
+2. **Your macOS account name** appears in old versions of this file, as the keystore path
+   (`/Users/<account>/Keystores/…` and `/Users/<account>/keys/…`). `HEAD` now says `/Users/<you>/…`; history keeps
+   it. Low sensitivity: a path, not the key.
+3. Your real name is in the keystore's certificate (`CN=Yahya Fati`), the macOS bundle vendor and `LICENSE`. On
+   purpose; listed for completeness.
+4. **Not checkable by an agent:** your actual pool username isn't known here, so it was only searched indirectly
+   (no unknown username-like strings turned up). Check it yourself; `0` means it's not in the history:
+   ```bash
+   git log -p --all | grep -ci 'YOUR_POOL_USERNAME'
+   ```
 
 ### Install text for the README (draft)
 

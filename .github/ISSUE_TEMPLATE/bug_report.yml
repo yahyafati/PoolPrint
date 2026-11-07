@@ -1,0 +1,55 @@
+name: Bug report
+description: Something in Pool Print doesn't work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Pool Print is a vibe-coded hobby project shared as is: there is no promised support or fix.
+
+        **Never post secrets here.** Replace with placeholders (`<username>`, `ssh-ed25519 AAAA…`):
+        your pool username or password, private or public keys, fingerprints, and `lpq` output showing other people's jobs.
+        For a security problem, don't open an issue: use **Security → Report a vulnerability** (see SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Settings → About, e.g. "Pool Print 1.0.0".
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Android
+        - macOS
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS version and device
+      description: e.g. "Android 15, Pixel 8" or "macOS 15.5, MacBook Air M2".
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. On campus or over the VPN?
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Error details
+      description: If the app showed an error, tap its "Details" and paste the text here, with usernames and keys replaced by placeholders.
+      render: text
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed my pool username, keys, fingerprints and other people's job details from this report.
+          required: true

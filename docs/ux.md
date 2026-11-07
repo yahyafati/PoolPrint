@@ -171,7 +171,8 @@ Sections, each opened by a strong rule and an uppercase label:
 - **Server:** the trusted fingerprint with **Forget** (confirms first), or "Not pinned yet".
 - **Printers:** **Refresh printers**, with the known count, the last update and the outcome of the last refresh.
 - **About:** "Pool Print <version>" (the full name, e.g. `1.0.0-rc.1`), then the vibe-coded, as-is, no-warranty line
-  and "no backend, no telemetry".
+  and "no backend, no telemetry"; below it **MIT licence** and **Third-party notices** rows, which open
+  `LICENSE` and `THIRD_PARTY_NOTICES.md` on GitHub in the system browser (the app itself fetches nothing).
 
 **Add a device:** each device has its own key (D-19). On the new device, onboarding shows its public key ("Show only
 the public key"). On a device that already prints, Settings → Add a device takes that key pasted into a field and

@@ -238,8 +238,12 @@
     <string name="settings_discovery_failed">Couldn't read the printers from the server. The app keeps using what it has.</string>
     <string name="settings_discovery_trust">Trust the server first: print or test the connection once.</string>
     <string name="settings_about_version">Pool Print %1$s</string>
-    <string name="settings_about_disclaimer">Vibe-coded: written largely by AI agents and not audited. Provided as is, without any warranty.</string>
+    <string name="settings_about_disclaimer">Vibe-coded, use at your own risk: written largely by AI agents and not audited. Provided as is, without any warranty or guarantee.</string>
     <string name="settings_about">No backend and no telemetry. It only talks to the pool login server.</string>
+    <string name="settings_about_license">MIT licence</string>
+    <string name="settings_about_license_hint">Opens the licence on GitHub in your browser</string>
+    <string name="settings_about_notices">Third-party notices</string>
+    <string name="settings_about_notices_hint">Libraries inside the app and their licences</string>
 
     <!-- Validation -->
     <string name="validation_page_ranges_invalid">Page ranges look like 1-4,7.</string>

@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,6 +34,7 @@ fun SettingsScreen(model: SettingsModel, appVersion: String, onClose: () -> Unit
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val sharer = rememberTextSharer()
+    val uriHandler = LocalUriHandler.current
     PhoneScreen(
         topBar = { TopBar(stringResource(Res.string.settings_title), onBack = onClose) },
         overlay = {
@@ -149,9 +151,21 @@ fun SettingsScreen(model: SettingsModel, appVersion: String, onClose: () -> Unit
                     subtitle = stringResource(Res.string.settings_about_disclaimer) + "\n" + stringResource(Res.string.settings_about),
                 )
             }
+            Rule(strong = false)
+            ListRow(onClick = { uriHandler.openUri(LICENSE_URL) }, trailing = { Chevron("↗") }) {
+                RowText(stringResource(Res.string.settings_about_license), Modifier.weight(1f), subtitle = stringResource(Res.string.settings_about_license_hint))
+            }
+            Rule(strong = false)
+            ListRow(onClick = { uriHandler.openUri(THIRD_PARTY_NOTICES_URL) }, trailing = { Chevron("↗") }) {
+                RowText(stringResource(Res.string.settings_about_notices), Modifier.weight(1f), subtitle = stringResource(Res.string.settings_about_notices_hint))
+            }
         }
     }
 }
+
+/** Opened in the browser on tap; the app itself never fetches them (it only talks to the pool server). */
+private const val LICENSE_URL = "https://github.com/yahyafati/PoolPrint/blob/main/LICENSE"
+private const val THIRD_PARTY_NOTICES_URL = "https://github.com/yahyafati/PoolPrint/blob/main/THIRD_PARTY_NOTICES.md"
 
 /** A strong rule and an uppercase label opening a settings section. */
 @Composable

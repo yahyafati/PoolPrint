@@ -245,4 +245,7 @@ notes and a clear "vibe-coded, provided as is" notice. The phases, owner/agent s
   `gradle.properties` drive the Android version, the `.dmg` version (without `-rc.N`) and the Settings → About
   label "Pool Print <version>" with the vibe-coded line; checked by `buildSrc` tests (`make test-build`).
   Manual: 👤 open Settings → About once on Android and macOS and check the label reads "Pool Print 1.0.0-rc.1".
-- ⬜ Phase 3 — repository ready to go public (next).
+- 🟨 Phase 3 — repository ready to go public: agent part done 2026-11-07 (history scan: no secrets, two privacy
+  items for the owner; `LICENSE`, `THIRD_PARTY_NOTICES.md`, README top with notice/Download/Install, `SECURITY.md`,
+  bug-report template, licence and notices rows in Settings → About). Waiting for 👤 review of the scan, licence and
+  README, then the visibility switch.
