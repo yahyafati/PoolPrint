@@ -46,7 +46,7 @@ Facts from the repo that shape this plan:
 | [3](#phase-3--repository-ready-to-go-public) | 🟨 Secret scan, licence, third-party notices, README install guide (🤖 done, 👤 review pending) | 🤖 prepare · 👤 approve |
 | [4](#phase-4--release-script) | ✅ `make release`: tests, signed APK, DMG, checks, checksums, notes draft | 🤖 |
 | [5](#phase-5--release-candidate) | ✅ Build `v1.0.0-rc.1`, put it on a draft/pre-release | 👤🤖 |
-| [6](#phase-6--test-the-candidate-release-gate) | Install the downloaded RC on real devices; run the release gate | 👤 |
+| [6](#phase-6--test-the-candidate-release-gate) | 🟨 Install the downloaded RC on real devices; run the release gate (rc.2 version bump done) | 👤 |
 | [7](#phase-7--publish-v100) | Tag and publish `v1.0.0` | 👤🤖 |
 | [8](#phase-8--after-the-release) | Verify, update docs, patch-release routine | 👤🤖 |
 | [9](#phase-9-optional--automate-with-github-actions) | *(optional)* Build releases in GitHub Actions | 🤖 workflow · 👤 secrets |
@@ -467,6 +467,8 @@ From the [roadmap](roadmap.md) checklists, the ones a new user hits on day one:
 ### 6.3 Update path (needs a second build)
 
 - [ ] 🤖 Bump to `1.0.0-rc.2` / `versionCode 3` (even with no code change) and 👤 build and pre-release it.
+      🤖 Bumped 2026-11-07 (`gradle.properties`, and the version line of `THIRD_PARTY_NOTICES.md`; no dependency
+      changed since rc.1). 👤 Commit, push, then `make release` → `make release-draft` → publish as a pre-release.
 - [ ] Android: install rc.2 **over** rc.1 → still onboarded, settings kept.
 - [ ] macOS: replace the app in Applications → note whether a Keychain prompt appears and whether *Always Allow*
       sticks (D-04, M4 checklist).

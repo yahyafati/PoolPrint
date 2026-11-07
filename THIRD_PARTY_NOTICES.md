@@ -8,7 +8,7 @@ reproduced in [NOTICE texts](#notice-texts). The full licence texts follow at th
 
 The lists are the release runtime classpaths (`./gradlew :androidApp:dependencies --configuration
 releaseRuntimeClasspath` and `./gradlew :desktopApp:dependencies --configuration runtimeClasspath`), checked for
-version 1.0.0-rc.1. Test-only libraries (Apache MINA SSHD, slf4j-simple, JUnit, kotlin-test, coroutines-test) are
+version 1.0.0-rc.2. Test-only libraries (Apache MINA SSHD, slf4j-simple, JUnit, kotlin-test, coroutines-test) are
 not shipped and not listed.
 
 ## In both apps (Android and macOS)

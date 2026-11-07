@@ -262,3 +262,5 @@ notes and a clear "vibe-coded, provided as is" notice. The phases, owner/agent s
   built commit.
 - ✅ Phase 5 — release candidate (2026-11-07): `v1.0.0-rc.1` published as a pre-release on
   `b80b3b6`, with the APK, DMG, notices and `SHA256SUMS.txt`. Next: 👤 Phase 6, test the downloaded files.
+- 🟨 Phase 6 — release gate: version bumped to `1.0.0-rc.2` / `versionCode 3` for the update-path test (6.3,
+  2026-11-07). Waiting for 👤 the install, blocking and update checks on real devices.
