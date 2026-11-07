@@ -55,15 +55,35 @@ compose.desktop {
         }
 
         nativeDistributions {
-            // macOS only for now (D-18); add Msi/Deb here if a Windows or Linux build is ever wanted.
-            targetFormats(TargetFormat.Dmg)
+            // Dmg on macOS (D-18), Msi on Windows (D-25, D-30). Each only builds on its own OS: jpackage cannot
+            // cross-package, so on a Mac only the Dmg tasks can run (the Msi tasks are configured but not runnable).
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi)
             packageName = "Pool Print"
             // Numbers only on macOS (D-18): 1.0.0-rc.1 is packaged as 1.0.0; the app shows the full name.
             packageVersion = appVersion.macPackageVersion
-            // From suggestRuntimeModules: the jlink runtime otherwise lacks what sshj and PDFBox reach for.
+            // From suggestRuntimeModules (run on macOS): the jlink runtime otherwise lacks what sshj and PDFBox reach
+            // for. Windows needs nothing more (docs/windows-port-roadmap.md, W3); the Windows run of
+            // suggestRuntimeModules is on the manual checklist.
             modules("java.instrument", "java.naming", "java.security.jgss", "java.sql", "jdk.unsupported")
             description = "Print PDFs on the Uni Freiburg TF pool printers"
             vendor = "Yahya Fati"
+
+            windows {
+                iconFile.set(project.file("icons/PoolPrint.ico"))
+                // Per-user install (D-30): no administrator prompt, installs under the user's %LOCALAPPDATA%.
+                perUserInstall = true
+                shortcut = true // desktop shortcut
+                menuGroup = "Pool Print" // Start-menu folder, which also implies a Start-menu shortcut
+                // Never change: it is what lets a newer Msi replace an older one in place (D-30, decisions.md).
+                upgradeUuid = "fdbbb4df-e57b-487c-af3b-a52341470e7f"
+                // MAJOR.MINOR.BUILD, numbers only: 1.0.0-rc.2 is packaged as 1.0.0 (docs/release.md).
+                packageVersion = appVersion.windowsPackageVersion
+
+                // No fileAssociation("application/pdf", "pdf", ...) here on purpose: jpackage registers it as the
+                // extension's own ProgId, with no "Open with only" rank like macOS's LSHandlerRank, so it could
+                // take over PDF from the user's viewer (D-30, docs/windows-port-roadmap.md W3). Explorer's
+                // "Open with → Choose another app" plus drag and drop are the Windows ways in.
+            }
 
             macOS {
                 bundleID = "com.yahyafati.poolprint"

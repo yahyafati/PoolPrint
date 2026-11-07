@@ -15,7 +15,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done (unit-tested) · 
 | W0 — Decisions and doc changes | ✅ |
 | W1 — Platform code (key store, data folder, OS switch) | 🔶 |
 | W2 — File hand-over (picker, drop, Open With, single instance) | 🔶 |
-| W3 — Packaging (Msi) | ⬜ |
+| W3 — Packaging (Msi) | 🔶 |
 | W4 — Build machine, release tooling, release gate | ⬜ |
 
 **Estimate:** 2–4 days of work. The code is small; building and testing on a real Windows machine is what takes
@@ -138,18 +138,39 @@ still tested.
 
 ## W3 — Packaging
 
-- ⬜ `desktopApp/build.gradle.kts`: add `TargetFormat.Msi` next to Dmg and a `windows { … }` block:
-  `iconFile` (`PoolPrint.ico`), `menuGroup`, `perUserInstall = true`, `shortcut = true`, a fixed `upgradeUuid`
-  (**generate once, never change** — it is what lets a new Msi replace the old one), `packageVersion`.
-- ⬜ Version: Msi needs numeric `MAJOR.MINOR.BUILD` (MAJOR, MINOR ≤ 255; BUILD ≤ 65535). Add a
-  `windowsPackageVersion` to `PoolPrintVersion` in `buildSrc` (like `macPackageVersion`), with `:buildSrc:test` cases
-  (`1.0.0-rc.2` → `1.0.0`).
-- ⬜ PDF file association (`fileAssociation(...)` in the Compose DSL — check the exact API in Compose 1.12).
-  It must only add Pool Print to "Open with", **not** become the default PDF app. If jpackage's association claims
-  the default, drop it and rely on "Open with → Choose another app" plus drag and drop.
-- ⬜ Icon: extend `desktopApp/icons/make_icon.py` to also write `PoolPrint.ico` (16–256 px) from the same glyph.
-- ⬜ jlink modules: run `suggestRuntimeModules` on Windows and keep the union with the macOS list.
-- ⬜ ProGuard stays off (same reasons as macOS).
+- ✅ `desktopApp/build.gradle.kts`: `TargetFormat.Msi` next to Dmg and a `windows { … }` block: `iconFile`
+  (`PoolPrint.ico`), `menuGroup`, `perUserInstall = true`, `shortcut = true`, a fixed `upgradeUuid`
+  (**generated once, never change** — it is what lets a new Msi replace the old one), `packageVersion`.
+- ✅ Version: Msi needs numeric `MAJOR.MINOR.BUILD` (MAJOR, MINOR ≤ 255; BUILD ≤ 65535). `windowsPackageVersion` in
+  `PoolPrintVersion` (`buildSrc`, like `macPackageVersion`), with `:buildSrc:test` cases (`1.0.0-rc.2` → `1.0.0`).
+- ✅ PDF file association: checked (`fileAssociation(...)` in the Compose 1.12.2 DSL) and **dropped** — see the outcome.
+- ✅ Icon: `desktopApp/icons/make_icon.py` also writes `PoolPrint.ico` (16–256 px) from the same glyph.
+- 🔶 jlink modules: reasoned (no Windows-only module needed; union with the macOS list = the same list); the
+  `suggestRuntimeModules` run on Windows is on the checklist.
+- ✅ ProGuard stays off (same reasons as macOS; the existing `buildTypes.release.proguard` setting covers every OS).
+
+**Outcome (2026-11-07):**
+- `targetFormats(Dmg, Msi)` and `windows { … }` as above. `upgradeUuid` = `fdbbb4df-e57b-487c-af3b-a52341470e7f`
+  (recorded in D-30). On macOS the Msi tasks (`packageMsi`, `packageReleaseMsi`) are configured and show up in
+  `tasks --all` but are skipped; `packageDmg` still builds and the configuration cache is reused. The Msi itself was
+  never built here.
+- `windowsPackageVersion`: `MAJOR.MINOR.PATCH` without `-rc.N`; fails with the property name when MAJOR/MINOR > 255 or
+  PATCH > 65535 (the Compose plugin checks the same limits, but only with its own message). 5 new tests (buildSrc: 11).
+  **Consequence documented in [release.md](release.md) and D-30:** `1.0.0-rc.1`, `-rc.2` and `1.0.0` are the same Msi
+  version, so they do not upgrade each other; uninstall first when going from an RC to the final release. Only a
+  version bump upgrades in place.
+- **File association dropped.** The DSL's `fileAssociation(mimeType, extension, description, iconFile)` passes jpackage only
+  those four fields, and jpackage registers the extension under a ProgId of its own; there is no "Alternate rank"
+  equivalent to macOS's `LSHandlerRank`. That can make Pool Print the default PDF app or disturb the user's choice, which
+  the owner ruled out. The JDK's Windows jpackage code is not available on this Mac to confirm either way, so the
+  conservative choice was made. Ways in on Windows: Explorer **Open with → Choose another app → Pool Print.exe**,
+  drag and drop, Ctrl+O (W2's code handles the first). The W2 checklist items about "Open with → Pool Print" now say so.
+- Icon: Windows variant (body nearly fills the canvas, 190 px corners, no shadow) so it reads at 16–48 px; the macOS
+  `.icns`, `PoolPrint.png` and the Android layers regenerate **byte-identical** (git shows no change).
+- jlink modules: unchanged. JNA ships `jnidispatch.dll` in its jar; the Credential Manager calls, loopback sockets,
+  file lock and ACLs are `java.base`/`java.desktop` (already in); `jdk.crypto.mscapi` is not used.
+- Not verified without Windows: everything about the Msi (building it, installing per-user without admin, the Start-menu
+  and desktop shortcuts, the icon, upgrading, uninstalling, what jpackage does on an equal version, the install folder).
 
 **Acceptance:** `packageReleaseMsi` builds on Windows; installing, starting, upgrading over an older Msi and
 uninstalling all work without admin rights.
@@ -176,12 +197,18 @@ uninstalling all work without admin rights.
       Panel makes the app generate a new key (and asks to add it again) without crashing.
 - [ ] Print a PDF via Ctrl+O; the dialog only shows PDFs (or rejects others clearly).
 - [ ] Drag a PDF from Explorer onto the window → print sheet; a non-PDF → "Only PDF files can be printed."
-- [ ] Right-click a PDF → Open with → Pool Print, with the app **closed** (cold start) and **open** (goes to the
-      running window, no second window). The default PDF viewer is unchanged.
+- [ ] Right-click a PDF → Open with → Choose another app → Pool Print.exe (there is no file association in the Msi,
+      D-30), with the app **closed** (cold start) and **open** (goes to the running window, no second window). The default
+      PDF viewer is unchanged, and Pool Print is not in the "Open with" list before you chose it.
 - [ ] Ctrl+P prints from the print sheet and is disabled elsewhere.
 - [ ] Page count of a real PDF is shown (PDFBox in the packaged runtime).
-- [ ] Install a newer Msi over the old one: settings, presets, pinned host key and the device key survive.
-- [ ] Uninstall removes the app; decide and note whether `%LOCALAPPDATA%\Pool Print` and the credential stay.
+- [ ] Install a newer Msi (higher `MAJOR.MINOR.PATCH`, e.g. 1.0.1 over 1.0.0) over the old one: it replaces it in place (one
+      entry in Settings → Apps), settings, presets, pinned host key and the device key survive.
+- [ ] Equal Msi version (an RC and its final release, or two rcs): note what happens (refused, repaired or a second
+      install). Documented workaround: uninstall first (release.md).
+- [ ] Uninstall (Settings → Apps, no admin prompt) removes the app and the shortcuts; expected: `%LOCALAPPDATA%\Pool Print`
+      data files and the Credential Manager entry stay (D-30). Note what actually happens, especially if the install
+      folder is the same `%LOCALAPPDATA%\Pool Print` (the data file must survive).
 - [ ] W1: `./gradlew :shared:jvmTest` passes on Windows (the MINA SSHD transport tests run unchanged), and
       `$env:POOLPRINT_WINCRED_TEST=1; ./gradlew :shared:jvmTest --tests '*WindowsCredential*'` passes (real Credential
       Manager: write, read, overwrite, delete; the `CredentialW` structure and the three `Cred*W` calls are only
@@ -190,8 +217,8 @@ uninstalling all work without admin rights.
       key comment is `pool-print@<computer name>`.
 - [ ] Layout at the minimum window size with the in-window menu bar; dark mode; display scaling at 150 %.
 - [ ] W2: Ctrl+O dialog lists PDFs only (typing `*.*` shows all; choosing a non-PDF then does nothing).
-- [ ] W2: Open with → Pool Print, app **closed** (cold start): window opens with the print sheet for that PDF.
-- [ ] W2: Open with → Pool Print, app **open** (also minimised): no second window; the running window comes to the front with the print
+- [ ] W2: Open with → Choose another app → Pool Print.exe, app **closed** (cold start): window opens with the print sheet for that PDF.
+- [ ] W2: Open with → Choose another app → Pool Print.exe, app **open** (also minimised): no second window; the running window comes to the front with the print
       sheet (if Windows only flashes the taskbar button, note it); Task Manager shows one Pool Print process.
 - [ ] W2: open a PDF from a path with spaces and non-ASCII characters (`C:\Users\…\Übung 3.pdf`) both ways.
 - [ ] W2: end the running app, start it again: no stale-lock problem (the lock dies with the process); `instance.lock` and
@@ -199,3 +226,14 @@ uninstalling all work without admin rights.
 - [ ] W2: double-click the Start-menu shortcut while the app runs: nothing visible happens (the second copy exits quietly).
 - [ ] W2: `./gradlew :shared:jvmTest --tests '*HandOver*' --tests '*DesktopStartup*'` passes on Windows (real loopback sockets
       and the real file lock).
+- [ ] W3: `./gradlew :desktopApp:packageReleaseMsi` builds on Windows (the Compose plugin downloads WiX 3.x itself on first use; note
+      if that needs network or fails); `desktopApp\build\compose\binaries\main-release\msi\Pool Print-<version>.msi` exists and its
+      version is the numeric one (Properties → Details).
+- [ ] W3: install from the Msi **without admin rights**: no UAC prompt, a Start-menu folder "Pool Print" and a desktop shortcut
+      with the lime icon (check 16/32/48 px sizes in Explorer's views), the app starts and Settings → About shows the full version.
+- [ ] W3: the installed app shows a page count for a real PDF (PDFBox in the jlinked runtime) and the key store works from the
+      packaged runtime (no `NoClassDefFoundError` / module error in a console run of `Pool Print.exe`).
+- [ ] W3: `./gradlew :desktopApp:suggestRuntimeModules` on Windows; if it lists a module beyond the five in `desktopApp/build.gradle.kts`,
+      add it (union with the macOS list).
+- [ ] W3: Settings → Default apps → PDF is unchanged after installing and after uninstalling.
+- [ ] W3: after uninstalling, installing the same Msi again works and the app is still onboarded.

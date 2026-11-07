@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a Kotlin Multiplatform + Compose Multiplatform app targeting **Android**, **macOS desktop (JVM)** and, in progress, **Windows x64 desktop (JVM)** (D-25). It prints PDFs on the Uni Freiburg TF pool printers by running `lpr` over SSH on `login.informatik.uni-freiburg.de`, streaming the PDF into its stdin. Milestones 1–4 are implemented; the design is documented in `docs/`, and `docs/roadmap.md` has the status. The Windows port is tracked in the temporary `docs/windows-port-roadmap.md` (phases W0–W4; decisions D-25–D-31); W0 (decisions and docs) is done, the code lands in W1–W4.
+Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a Kotlin Multiplatform + Compose Multiplatform app targeting **Android**, **macOS desktop (JVM)** and, in progress, **Windows x64 desktop (JVM)** (D-25). It prints PDFs on the Uni Freiburg TF pool printers by running `lpr` over SSH on `login.informatik.uni-freiburg.de`, streaming the PDF into its stdin. Milestones 1–4 are implemented; the design is documented in `docs/`, and `docs/roadmap.md` has the status. The Windows port is tracked in the temporary `docs/windows-port-roadmap.md` (phases W0–W4; decisions D-25–D-31); W0–W3 (decisions, platform code, file hand-over, Msi packaging) are done; W3's Msi is unbuilt/untested until a Windows run, W4 adds the build workflow and release tooling.
 
 ## Read before working
 
@@ -36,7 +36,7 @@ Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a 
 - Android debug APK: `./gradlew :androidApp:assembleDebug`
 - Desktop run: `./gradlew :desktopApp:run`
 - Desktop with hot reload: `./gradlew :desktopApp:hotRun --auto`
-- Desktop macOS installer: `./gradlew :desktopApp:packageDmg` (Dmg is the only macOS target, D-18). Windows packaging (`Msi`, built on a Windows runner/PC, D-30, D-31) arrives in W3/W4; it cannot be built on macOS.
+- Desktop macOS installer: `./gradlew :desktopApp:packageDmg` (Dmg is the only macOS target, D-18). Windows: `./gradlew :desktopApp:packageReleaseMsi` (per-user Msi, D-30) exists since W3 but only runs on Windows (a Windows runner/PC, D-31; W4 adds the workflow); on macOS the Msi tasks are configured but skipped. Msi version = `windowsPackageVersion` (RC suffix dropped, so an RC and its final release share one Msi version); the `upgradeUuid` in `desktopApp/build.gradle.kts` must never change.
 - Shared tests on JVM: `./gradlew :shared:jvmTest`
 - Shared tests on Android host (local JVM): `./gradlew :shared:testAndroidHostTest`
 - Build-logic tests (version parsing): `./gradlew :buildSrc:test`; `make test-all` runs all three suites
@@ -51,7 +51,7 @@ No lint/formatter is configured beyond `kotlin.code.style=official`. Gradle conf
 
 Three Gradle modules, plus `buildSrc`:
 
-- **`buildSrc`** — build logic only. `PoolPrintVersion` reads `poolprint.versionName` / `poolprint.versionCode` from `gradle.properties`, the single version source for both apps (docs/release.md, Phase 2); bump the version there, nowhere else.
+- **`buildSrc`** — build logic only. `PoolPrintVersion` reads `poolprint.versionName` / `poolprint.versionCode` from `gradle.properties` (and derives `macPackageVersion` / `windowsPackageVersion`), the single version source for both apps (docs/release.md, Phase 2); bump the version there, nowhere else.
 
 - **`:shared`** — KMP library holding all app logic and UI. Entry composable is `App()` in `commonMain`. Uses the newer `com.android.kotlin.multiplatform.library` plugin (configured via `kotlin { android { ... } }`, not a separate `android {}` block). Targets: `jvm()` and `android`.
   - `jvmCommonMain` — shared by Android and desktop: sshj `SshjClient`, BouncyCastle key generation, `buildAppDependencies`. Wired as a custom hierarchy group in `shared/build.gradle.kts`.

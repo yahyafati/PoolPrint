@@ -218,7 +218,10 @@ sealed interface SshError {
 - Private key: macOS Keychain through JNA and the Security framework, or a user-chosen existing key
   from `~/.ssh` (with its passphrase, if any, kept in the Keychain). See
   [decisions.md](decisions.md#d-04-macos-keychain-access).
-- Packaging: `.dmg` through `packageDmg` (M4, D-18). Code signing and notarisation are out of scope unless requested.
+- Packaging: `.dmg` through `packageDmg` on macOS (M4, D-18); a per-user `.msi` through `packageMsi` / `packageReleaseMsi`
+  on Windows (D-30; `desktopApp/build.gradle.kts`, fixed `upgradeUuid`, `PoolPrint.ico`). jpackage only builds the
+  format of the OS it runs on, so the Msi cannot be built on macOS (W4 builds it on a Windows runner, D-31). No PDF
+  file association on Windows (D-30). Code signing and notarisation are out of scope unless requested.
 
 ## State and persistence
 

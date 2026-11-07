@@ -215,7 +215,7 @@ was ever committed, and the only `poolprint.signing.*` lines are this guide's ex
 
 **How it's built.** `buildSrc/src/main/kotlin/PoolPrintVersion.kt` reads and checks both properties
 (`MAJOR.MINOR.PATCH` or `MAJOR.MINOR.PATCH-rc.N`, `MAJOR ≥ 1`, no leading zeros; `versionCode` a whole number from 1);
-anything else fails the build with the property name. `macPackageVersion` drops the `-rc.N`. Its tests are
+anything else fails the build with the property name. `macPackageVersion` and `windowsPackageVersion` (also range-checked for the Msi) drop the `-rc.N`. Its tests are
 `./gradlew :buildSrc:test`, part of `make test-all`. Android passes `BuildConfig.VERSION_NAME` into `App()`; the desktop
 build generates `BuildInfo.VERSION_NAME` (`:desktopApp:generateBuildInfo`), so the label is right under `run` and
 `hotRun` too. Settings → About shows "Pool Print <version>" with the vibe-coded line and the privacy line under it.
@@ -588,6 +588,12 @@ For every later release (`1.0.1`, `1.1.0`, …):
      final release drops the suffix (`1.1.0-rc.2` → `1.1.0`, with a new `versionCode`).
    - macOS sees only `MAJOR.MINOR.PATCH`, so an RC and its final release share the `.dmg` version; the app's
      Settings → About shows the full name.
+   - **Windows Msi versions (D-30):** the Msi version is `windowsPackageVersion` (`MAJOR.MINOR.PATCH` without the
+     suffix; MAJOR/MINOR ≤ 255, PATCH ≤ 65535, else the build fails). An RC and its final release therefore share
+     one Msi version (`1.0.0-rc.2` and `1.0.0` are both `1.0.0`), and Windows Installer does not upgrade an Msi
+     with an equal version: **uninstall the old Msi first** when going from an RC to the final release (settings and
+     key survive an uninstall). Only a higher `MAJOR.MINOR.PATCH` upgrades in place. The Msi's `upgradeUuid` is fixed
+     forever (decisions.md, D-30).
 3. 👤 `make release` → `make release-draft` → review → Publish. Use an RC first when the change touches SSH,
    key storage, onboarding or command building (things only the real server can confirm).
 4. 👤 Smoke test the downloaded files (install over the previous version, print one page).

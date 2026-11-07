@@ -530,9 +530,40 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
   profile. A fixed `upgradeUuid` (generated once, never changed) lets a newer Msi replace an older one in place.
 - **Rejected:** an Exe installer (no in-place upgrade story as simple as Msi's) and a machine-wide install (needs
   admin, which a student's lab or shared PC may not grant).
-- **Version:** Msi needs a numeric `MAJOR.MINOR.BUILD`; the `-rc.N` suffix is dropped as for macOS (D-23, W3).
+- **Version:** Msi needs a numeric `MAJOR.MINOR.BUILD`; the `-rc.N` suffix is dropped as for macOS (D-23, W3; see the W3 details below).
 - File association and the icon are W3 details; the association must only add Pool Print to "Open with", not take
   over as the default PDF app (as `LSHandlerRank` = `Alternate` on macOS, D-18).
+- **W3 details (2026-11-07):**
+  - **`upgradeUuid` = `fdbbb4df-e57b-487c-af3b-a52341470e7f`**, hard-coded in `desktopApp/build.gradle.kts`.
+    **Never change it:** a different UUID makes Windows treat the next Msi as another product, and the old install
+    would no longer be replaced. The rest: `perUserInstall = true`, desktop shortcut, Start-menu group `Pool Print`,
+    icon `desktopApp/icons/PoolPrint.ico` (16–256 px, from the same glyph as the other icons), `packageName`
+    `Pool Print`, `modules(...)` shared with macOS, ProGuard off as on macOS.
+  - **Msi version** = `windowsPackageVersion` in `PoolPrintVersion` (`buildSrc`): `MAJOR.MINOR.PATCH` without `-rc.N`,
+    MAJOR/MINOR ≤ 255, PATCH ≤ 65535, otherwise the build fails with the property name. **Consequence:**
+    `1.0.0-rc.1`, `1.0.0-rc.2` and `1.0.0` are all Msi `1.0.0`. Windows Installer ignores the suffix and a
+    major upgrade needs a *higher* version, so those builds are not upgrades of each other: uninstall the old one
+    first (the settings and the credential survive, see below). Only a real version bump (`1.0.1`, `1.1.0`) upgrades
+    in place. Whether jpackage's Msi refuses, repairs or double-installs on an equal version is not verified
+    (no Windows here; on the checklist).
+  - **No PDF file association in the Msi.** The Compose DSL has `windows { fileAssociation("application/pdf", "pdf",
+    …) }`, which hands jpackage a `--file-associations` file with only mime type, extension, description and icon.
+    jpackage then registers the extension with a ProgId of its own, and there is no equivalent of macOS's
+    `LSHandlerRank` = `Alternate` in it, so it could take `.pdf` away from the user's viewer (and touch it again on
+    uninstall). The JDK's Windows jpackage classes are not in the macOS JDK here, so this could not be read or tried;
+    the downside (a changed default PDF viewer) is worse than the gain, so the association is **dropped**. The ways in on Windows are Explorer's
+    **Open with → Choose another app → Pool Print** (pick `Pool Print.exe`, without "Always" unless wanted), drag and
+    drop onto the window, and Ctrl+O. (W2's command-line and hand-over code works for any of them.) Revisit only with a Windows PC to inspect
+    the registry result.
+  - **Uninstall:** the Msi removes only what it installed (the app files in the per-user install folder, which jpackage puts under
+    `%LOCALAPPDATA%` (probably `%LOCALAPPDATA%\Pool Print`, i.e. the same folder as the data; not verified, on the checklist,
+    and a reason to watch that the data file survives), and the shortcuts). The data files (D-27) and the Credential Manager
+    entry (D-26) are the app's own data, not part of the package, so they stay, as the macOS app leaves its Keychain item. Expected, not verified; checklist.
+  - **jlink modules:** unchanged (`java.instrument`, `java.naming`, `java.security.jgss`, `java.sql`,
+    `jdk.unsupported`). JNA brings its own `jnidispatch.dll` in the jar, and the Credential Manager, the loopback
+    sockets, the file lock and the owner-only ACL are all `java.base`/`java.desktop` (already in); `jdk.crypto.mscapi`
+    (the Windows certificate store provider) is not used. `suggestRuntimeModules` only runs for the build OS, so the
+    Windows run (and a union with the macOS list) is on the checklist.
 
 ## D-31 Where Windows builds come from: GitHub Actions, manual trigger
 
