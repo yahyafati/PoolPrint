@@ -71,7 +71,7 @@ Out of scope: a fully compromised (rooted or jailbroken) device, and a compromis
 Decided in D-26; implemented in W1. Not verified on a real Windows machine until the owner's checklist.
 
 - **Default:** the private key is a Credential Manager generic credential (`CRED_TYPE_GENERIC`,
-  `CRED_PERSIST_LOCAL_MACHINE`, target name based on `Pool Print`, mirroring the Keychain item), written, read and
+  `CRED_PERSIST_LOCAL_MACHINE`, target name `Pool Print`, user name `ssh-ed25519-private-key@login.informatik.uni-freiburg.de`, mirroring the Keychain item), written, read and
   deleted with `CredWriteW` / `CredReadW` / `CredDeleteW` through JNA (`jna-platform`). It is bound to the Windows
   user, opens without a prompt (A-11), does not roam, and the user can see and delete it in Control Panel.
 - The secret never goes on a command line or into a log; native buffers and byte arrays are zeroed after use. `load`

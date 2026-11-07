@@ -11,14 +11,24 @@ import com.yahyafati.poolprint.app.AppCommands
 import org.jetbrains.compose.resources.stringResource
 import poolprint.shared.generated.resources.*
 
-/** The File menu with ⌘O (open a PDF) and ⌘P (print). Print is enabled only while the print sheet can print. */
+/** The menu shortcut for [key]: ⌘ on macOS, Ctrl on Windows. */
+internal fun menuShortcut(os: DesktopOs, key: Key): KeyShortcut =
+    when (os) {
+        DesktopOs.MacOs -> KeyShortcut(key, meta = true)
+        DesktopOs.Windows -> KeyShortcut(key, ctrl = true)
+    }
+
+/**
+ * The File menu with Open PDF (⌘O / Ctrl+O) and Print (⌘P / Ctrl+P). Print is enabled only while the print sheet
+ * can print. On macOS the menu is the system menu bar; on Windows Compose draws it inside the window.
+ */
 @Composable
-fun FrameWindowScope.PoolPrintMenuBar(commands: AppCommands, onOpenPdf: () -> Unit) {
+fun FrameWindowScope.PoolPrintMenuBar(os: DesktopOs, commands: AppCommands, onOpenPdf: () -> Unit) {
     val print by commands.print.collectAsState()
     MenuBar {
         Menu(stringResource(Res.string.menu_file)) {
-            Item(stringResource(Res.string.menu_open_pdf), shortcut = KeyShortcut(Key.O, meta = true), onClick = onOpenPdf)
-            Item(stringResource(Res.string.menu_print), shortcut = KeyShortcut(Key.P, meta = true), enabled = print != null) {
+            Item(stringResource(Res.string.menu_open_pdf), shortcut = menuShortcut(os, Key.O), onClick = onOpenPdf)
+            Item(stringResource(Res.string.menu_print), shortcut = menuShortcut(os, Key.P), enabled = print != null) {
                 print?.invoke()
             }
         }

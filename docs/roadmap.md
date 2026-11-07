@@ -297,4 +297,4 @@ tasks and the Windows manual checklist are in the temporary [windows-port-roadma
 which stays the working tracker until W4 is done and is then folded in here. Decisions: D-25–D-31.
 
 - ✅ W0 — decisions and doc changes (2026-11-07).
-- ⬜ W1 — platform code · ⬜ W2 — file hand-over · ⬜ W3 — Msi packaging · ⬜ W4 — build workflow, release tooling and gate.
+- 🔶 W1 — platform code (done on macOS, Windows checks pending) · ⬜ W2 — file hand-over · ⬜ W3 — Msi packaging · ⬜ W4 — build workflow, release tooling and gate.

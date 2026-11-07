@@ -13,7 +13,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done (unit-tested) · 
 | Phase | Status |
 |---|---|
 | W0 — Decisions and doc changes | ✅ |
-| W1 — Platform code (key store, data folder, OS switch) | ⬜ |
+| W1 — Platform code (key store, data folder, OS switch) | 🔶 |
 | W2 — File hand-over (picker, drop, Open With, single instance) | ⬜ |
 | W3 — Packaging (Msi) | ⬜ |
 | W4 — Build machine, release tooling, release gate | ⬜ |
@@ -70,19 +70,34 @@ sections; Project Overview and `CLAUDE.md` list Windows as a target. No code cha
 
 ## W1 — Platform code
 
-- ⬜ `DesktopOs` (or similar) in `jvmMain`: detects macOS / Windows from `os.name`; anything else fails clearly
+- ✅ `DesktopOs` (or similar) in `jvmMain`: detects macOS / Windows from `os.name`; anything else fails clearly
   at startup ("unsupported OS") instead of half-working.
-- ⬜ `WindowsCredentialPrivateKeyStore` (or the DPAPI variant) implementing `PrivateKeyStore`: `load` returns
+- ✅ `WindowsCredentialPrivateKeyStore` (or the DPAPI variant) implementing `PrivateKeyStore`: `load` returns
   `null` when nothing is stored, `save` overwrites, `delete` is idempotent, buffers are zeroed after use, the secret
   never touches a command line or a log.
-- ⬜ Round-trip test against the real store, off by default like the Keychain one
+- 🔶 Round-trip test against the real store, off by default like the Keychain one
   (`POOLPRINT_WINCRED_TEST=1 ./gradlew :shared:jvmTest --tests '*WindowsCredential*'`), skipped on non-Windows.
-- ⬜ `DesktopAppDependencies`: data folder and key store chosen per OS; hostname fallback `"pc"` instead of `"mac"`
+- ✅ `DesktopAppDependencies`: data folder and key store chosen per OS; hostname fallback `"pc"` instead of `"mac"`
   (it ends up in the key comment `pool-print@<host>`, still filtered by `safeComment`).
-- ⬜ Menu shortcuts: ⌘ on macOS, Ctrl on Windows. The Compose menu bar renders inside the window on Windows;
+- 🔶 Menu shortcuts: ⌘ on macOS, Ctrl on Windows. The Compose menu bar renders inside the window on Windows;
   check the layout still fits at the minimum window size.
-- ⬜ Strings/UI that say "Mac", "Finder", "Keychain" or "⌘": make them OS-aware (Settings, onboarding, error
+- ✅ Strings/UI that say "Mac", "Finder", "Keychain" or "⌘": make them OS-aware (Settings, onboarding, error
   catalogue in [ux.md](ux.md)).
+
+**Outcome (2026-11-07):**
+- `DesktopOs` (`jvmMain/desktop`, `detect(osName)` / `current()`) with `UnsupportedOsException`; `main()` prints the message
+  and exits with status 1. Tested with injected `os.name` values.
+- `WindowsCredentialPrivateKeyStore` (`jvmMain/keys`): **`jna-platform` 5.19.1 has no Credential Manager bindings**, so
+  `CredReadW`/`CredWriteW`/`CredDeleteW`/`CredFree` and `CREDENTIALW` are declared in the app (D-26 note in
+  [decisions.md](decisions.md)); `jna-platform` supplies `FILETIME`, `WinError` and the error text. The store logic
+  (null when absent, overwrite, idempotent delete, 2560-byte limit) runs against an in-memory backend on every OS; the
+  structure layout is checked on macOS (80 bytes); the real calls are untested until Windows.
+- `DesktopAppDependencies`: `desktopDataDir` / `desktopKeyStore` / `desktopHostName` take the OS (and home, env) as
+  arguments and are unit-tested on macOS.
+- Menu shortcuts through `menuShortcut(os, key)` (meta / ctrl, unit-tested). Whether the in-window menu bar fits at the
+  minimum window size (420 × 560) is not checked: 🔶.
+- Strings: no user-facing string in `commonMain` mentions Mac, Finder, the Keychain or ⌘, so there was nothing to make
+  OS-aware beyond the shortcuts; the docs ([ux.md](ux.md), [architecture.md](architecture.md)) now name both OSes.
 
 **Acceptance:** `:shared:jvmTest` passes on macOS **and** on Windows (the MINA SSHD transport tests run unchanged);
 the gated store test passes on Windows.
@@ -146,4 +161,10 @@ uninstalling all work without admin rights.
 - [ ] Page count of a real PDF is shown (PDFBox in the packaged runtime).
 - [ ] Install a newer Msi over the old one: settings, presets, pinned host key and the device key survive.
 - [ ] Uninstall removes the app; decide and note whether `%LOCALAPPDATA%\Pool Print` and the credential stay.
+- [ ] W1: `./gradlew :shared:jvmTest` passes on Windows (the MINA SSHD transport tests run unchanged), and
+      `$env:POOLPRINT_WINCRED_TEST=1; ./gradlew :shared:jvmTest --tests '*WindowsCredential*'` passes (real Credential
+      Manager: write, read, overwrite, delete; the `CredentialW` structure and the three `Cred*W` calls are only
+      exercised here).
+- [ ] W1: the app starts from `./gradlew :desktopApp:run` on Windows; data lands in `%LOCALAPPDATA%\Pool Print`; the
+      key comment is `pool-print@<computer name>`.
 - [ ] Layout at the minimum window size with the in-window menu bar; dark mode; display scaling at 150 %.

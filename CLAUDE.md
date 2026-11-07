@@ -42,6 +42,7 @@ Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a 
 - Build-logic tests (version parsing): `./gradlew :buildSrc:test`; `make test-all` runs all three suites
 - Standalone test SSH server for manual runs: `./gradlew :shared:runTestSshServer` (port 2222; the emulator reaches it at `10.0.2.2`)
 - macOS Keychain round-trip test (touches the real login keychain, off by default): `POOLPRINT_KEYCHAIN_TEST=1 ./gradlew :shared:jvmTest --tests '*MacKeychain*'`
+- Windows Credential Manager round-trip test (touches the real credential store, off by default, skipped on non-Windows): `POOLPRINT_WINCRED_TEST=1 ./gradlew :shared:jvmTest --tests '*WindowsCredential*'`
 - Single test: `./gradlew :shared:jvmTest --tests "com.yahyafati.poolprint.SharedCommonTest"` (append `.methodName` for one method)
 
 No lint/formatter is configured beyond `kotlin.code.style=official`. Gradle configuration cache and build cache are enabled (`gradle.properties`), so build logic must stay configuration-cache compatible.
@@ -55,7 +56,7 @@ Three Gradle modules, plus `buildSrc`:
 - **`:shared`** — KMP library holding all app logic and UI. Entry composable is `App()` in `commonMain`. Uses the newer `com.android.kotlin.multiplatform.library` plugin (configured via `kotlin { android { ... } }`, not a separate `android {}` block). Targets: `jvm()` and `android`.
   - `jvmCommonMain` — shared by Android and desktop: sshj `SshjClient`, BouncyCastle key generation, `buildAppDependencies`. Wired as a custom hierarchy group in `shared/build.gradle.kts`.
   - `commonMain` — shared code and Compose UI; resources live in `commonMain/composeResources` and are accessed through the generated `poolprint.shared.generated.resources.Res`.
-  - `androidMain` / `jvmMain` — platform implementations (Android Keystore store, macOS Keychain via JNA, PDF pickers, DataStore setup). Platform-specific functionality (printing APIs will differ per OS) belongs behind `expect`/`actual` or interfaces here.
+  - `androidMain` / `jvmMain` — platform implementations (Android Keystore store, macOS Keychain and Windows Credential Manager via JNA, `DesktopOs`, PDF pickers, DataStore setup). Platform-specific functionality (printing APIs will differ per OS) belongs behind `expect`/`actual` or interfaces here.
   - Tests: `commonTest` (runs on both targets), `jvmTest`, `androidHostTest`.
 - **`:androidApp`** — thin Android application shell; `MainActivity` just hosts `App()`, passing `BuildConfig.VERSION_NAME`.
 - **`:desktopApp`** — thin Kotlin/JVM Compose Desktop shell; `main.kt` opens a `Window` hosting `App()` (version from the generated `BuildInfo`) with the menu bar, drop target and Open With inbox from `shared/jvmMain/.../desktop`. Main class `com.yahyafati.poolprint.MainKt`; macOS bundle id `com.yahyafati.poolprint`.

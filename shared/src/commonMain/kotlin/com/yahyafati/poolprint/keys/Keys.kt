@@ -8,7 +8,7 @@ interface KeyGenerator {
     fun generate(comment: String): GeneratedKey
 }
 
-/** The platform secure store: Android Keystore-wrapped file, macOS Keychain. Loading never prompts (A-11). */
+/** The platform secure store: Android Keystore-wrapped file, macOS Keychain, Windows Credential Manager. Loading never prompts (A-11). */
 interface PrivateKeyStore {
     suspend fun load(): ByteArray?
     suspend fun save(pem: ByteArray)

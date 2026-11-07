@@ -15,11 +15,11 @@
 
 ```mermaid
 flowchart LR
-    subgraph Device["Android phone / Mac"]
+    subgraph Device["Android phone / Mac / Windows PC"]
         IN["PDF in<br/>(share intent, picker,<br/>drag & drop, Open With)"] --> UI["Compose UI<br/>(commonMain)"]
         UI --> CORE["Core<br/>models · validation ·<br/>command builder · cost"]
         CORE --> SSH["SshClient<br/>(jvmCommonMain impl)"]
-        KEYS["Key store<br/>Android Keystore / macOS Keychain"] --> SSH
+        KEYS["Key store<br/>Android Keystore / macOS Keychain /<br/>Windows Credential Manager"] --> SSH
         HK["Host-key store<br/>(TOFU pin)"] --> SSH
     end
     SSH -- "SSH exec channel<br/>stdin = PDF bytes" --> LOGIN["login.informatik.uni-freiburg.de<br/>lpr / lpq / lprm / lpoptions"]
@@ -45,7 +45,7 @@ commonMain            pure Kotlin + Compose: models, validation, command builder
    └── jvmCommonMain  NEW intermediate source set shared by Android and desktop JVM:
          │            real SshClient (SSH library), Ed25519 key generation, PDF byte streaming
          ├── androidMain   Android Keystore encryption, PdfRenderer page count, content-URI reading
-         └── jvmMain       macOS Keychain / ~/.ssh key import, PDFBox page count, file reading
+         └── jvmMain       macOS Keychain / Windows Credential Manager / ~/.ssh key import, PDFBox page count, file reading
 commonTest            unit tests for everything in commonMain + FakeSshClient
 jvmCommonTest         (optional) tests for the real SshClient against an in-process SSH server
 jvmTest / androidHostTest   platform-specific tests
@@ -167,6 +167,17 @@ sealed interface SshError {
 - Private key: encrypted with an AES-GCM key that lives in Android Keystore. See [security.md](security.md).
 - Network: `INTERNET` permission only.
 
+### Desktop OS switch (`jvmMain`, W1)
+
+- `DesktopOs` (`jvmMain/desktop`) is detected from `os.name` (`MacOs`, `Windows`; anything else throws
+  `UnsupportedOsException`, which `main()` prints before exiting, D-25). Platform facts reach the code as
+  parameters, never through `commonMain`: `commonMain` has no OS-specific strings or shortcuts.
+- `jvmMain/app/DesktopAppDependencies.kt` picks per OS: data folder (`~/Library/Application Support/Pool Print` /
+  `%LOCALAPPDATA%\Pool Print`, D-27), key store (`MacKeychainPrivateKeyStore` / `WindowsCredentialPrivateKeyStore`,
+  D-04 / D-26) and the host-name fallback for the key comment (`mac` / `pc`). The selection functions take the OS,
+  home folder and environment as arguments, so they are unit-tested on any OS.
+- `PoolPrintMenuBar(os, …)` uses ⌘ (meta) on macOS and Ctrl on Windows.
+
 ### macOS desktop (`:desktopApp` + `jvmMain`)
 
 - File picker: AWT `FileDialog`, which looks native on macOS, filtered to `.pdf`.
@@ -179,7 +190,7 @@ sealed interface SshError {
 - `IncomingPdfs` (`jvmMain/desktop`) is the one inbox for dropped files, Open With and ⌘O. It keeps the
   latest PDF (first PDF of several files) as a `StateFlow`; `main.kt` passes it to `App(incomingDocument = …)`.
   `App` drops a document that arrives while a job is uploading or waiting for host-key trust.
-- Menu bar: `PoolPrintMenuBar` (File → Open PDF… ⌘O, Print ⌘P). ⌘P goes through `AppCommands`
+- Menu bar: `PoolPrintMenuBar` (File → Open PDF… ⌘O / Ctrl+O, Print ⌘P / Ctrl+P). ⌘P goes through `AppCommands`
   (`commonMain/app`): the print sheet registers its `print` action while `canPrint` is true, the menu item
   is enabled exactly then.
 - Page count: Apache PDFBox (the allowed "PDF page-count library").

@@ -473,6 +473,13 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
   test touches the real store, so it is off by default (`POOLPRINT_WINCRED_TEST=1`) and skipped on other OSes.
 - **Dependency:** `jna-platform` (same version as `jna`) for the `Advapi32` bindings; registered below, added to the
   version catalog in W1.
+- **W1 finding (2026-11-07):** `jna-platform` 5.19.1 has no Credential Manager bindings (its `Advapi32` has no
+  `CredReadW`/`CredWriteW`/`CredDeleteW`, and there is no `Wincred` class). `WindowsCredentialPrivateKeyStore` therefore declares
+  those three functions, `CredFree` and the `CREDENTIALW` structure itself (`jvmMain/keys`) and uses `jna-platform` only for
+  `FILETIME`, `WinError.ERROR_NOT_FOUND` and `Kernel32Util.formatMessage`. The credential is keyed by target name `Pool Print`
+  (what Control Panel lists); the account string `ssh-ed25519-private-key@…` is stored as its user name. A key over the
+  2560-byte blob limit is refused with `CredentialTooLargeException`. The structure layout (80 bytes on x64) is unit-tested
+  on macOS; the real calls are only exercised by the gated test on Windows.
 - **Not verified here:** nothing in this environment runs Windows. Behaviour in the packaged app (credential
   survives an Msi upgrade, uninstall leaves it, deleting it in Control Panel makes the app generate a new key) is on
   the Windows manual checklist.
@@ -579,7 +586,7 @@ All non-template dependencies, planned or added. Update this table whenever `lib
 | `androidx.activity:activity-compose` (already in the template catalog) | `androidMain` | `OpenDocument` picker | Added (M1) |
 | JNA 5.19.1 | `jvmMain` | macOS Keychain access | Added (M1) |
 | Apache PDFBox `pdfbox` 3.0.8 | `jvmMain` | Page counting on desktop (D-02) | Added (M2) |
-| JNA Platform `jna-platform` (same version as JNA, 5.19.1) (D-26) | `jvmMain` | Windows Credential Manager bindings (`Advapi32`: `CredWriteW`/`CredReadW`/`CredDeleteW`) | Planned (Windows port); added to the version catalog in W1 |
+| JNA Platform `jna-platform` (same version as JNA, 5.19.1) (D-26) | `jvmMain` | Windows helpers for the Credential Manager store: `WinBase.FILETIME`, `WinError`, `Kernel32Util.formatMessage`. It has **no** `CredRead`/`CredWrite` bindings, so those three calls are declared in the app (D-26 note) | Added (W1) |
 | Apache MINA SSHD `sshd-core` 2.20.0 (+ `bcpkix`, `slf4j-simple`) | `jvmTest` only | In-process SSH server for testing the real `SshClient`; also run standalone for the emulator | Added (M1) |
 | `kotlin-test` (Gradle's embedded Kotlin version) | `buildSrc` tests only | Tests for the version parsing (release Phase 2); not shipped | Added (R1) |
 | `actions/checkout` v7.0.1, `actions/setup-java` v6.2.0, `actions/upload-artifact` v7.0.2, `actions/download-artifact` v8.0.2 (pinned by SHA, D-24) | GitHub Actions only | CI and release workflows; not shipped | Added (R1, Phase 9) |

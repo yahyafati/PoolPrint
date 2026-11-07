@@ -1,6 +1,6 @@
 # UI / UX
 
-Compose Multiplatform, light and dark mode (follows the system). The same screens run on Android and macOS;
+Compose Multiplatform, light and dark mode (follows the system). The same screens run on Android, macOS and Windows;
 desktop shows them as a centred, phone-width column, not a different flow. The look follows the owner's Claude
 Design project "Pool Print" (phone screens P01–P22, D-21).
 
@@ -92,8 +92,8 @@ deliberately no way to continue.
 ### Home (P08)
 
 - Top bar "Pool Print" with a "Ready" status mark.
-- "Print a PDF", "Share one from any app, or pick it here.", **Pick a PDF** (Android and macOS; on macOS a PDF can
-  also be dropped anywhere on the window, and ⌘O opens the file dialog).
+- "Print a PDF", "Share one from any app, or pick it here.", **Pick a PDF** (Android, macOS and Windows; on the desktop a PDF can
+  also be dropped anywhere on the window, and ⌘O (macOS) / Ctrl+O (Windows) opens the file dialog).
 - Rows: **Queue** (See what's printing), **Presets** (n saved), **Settings** (username · key, server, printers).
 - Footer: how many printers are known and when the list was last fetched.
 
@@ -200,6 +200,8 @@ resources (`error_*_title` and `error_*`).
 | `lpr` not found | The print command isn't available | This server has no lpr, so nothing was printed. | Details |
 | Validation error | An inline message under the field, e.g. "Page ranges look like 1-4,7." | | n/a |
 | Discovery failed | A small hint, "Using default printer settings." (not an error) | | Refresh |
+
+None of the rows or strings is OS-specific: no user-facing text in `commonMain` names Mac, Finder, the Keychain or ⌘ (W1 checked), so nothing needed to become OS-aware beyond the menu shortcuts in `jvmMain`.
 
 Stderr pattern matching is best-effort. Unknown output always falls through to the generic row,
 with the full stderr available.
