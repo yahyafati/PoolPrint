@@ -164,8 +164,10 @@ make android
 ```
 
 ```bash
-"$ANDROID_HOME"/build-tools/$(ls "$ANDROID_HOME"/build-tools | sort -V | tail -1)/apksigner verify --print-certs androidApp/build/outputs/apk/release/androidApp-release.apk
+SDK=$(grep '^sdk.dir=' local.properties | cut -d= -f2-); "$SDK"/build-tools/$(ls "$SDK"/build-tools | sort -V | tail -1)/apksigner verify --print-certs androidApp/build/outputs/apk/release/androidApp-release.apk
 ```
+
+(The SDK path comes from `sdk.dir` in `local.properties`, so this works without `ANDROID_HOME` set.)
 
 Send the `SHA-256 digest` line to the agent. It is **public** (it's in every APK) and goes into this doc, the release
 notes and the release script, so users and the script can check that an APK really is yours.
