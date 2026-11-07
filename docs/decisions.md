@@ -438,6 +438,9 @@ Questions for the owner that block or shape later work:
    `SHA256:N0jIYeTuFtSpa91Wy71QcDY//4HvPgh6XFfSNfb08f0`. Compare it with `ssh-keygen -lF` from a trusted
    machine. This also shows the server offers an Ed25519 host key, which the client prefers. The app
    did **not** pin it (trust was declined) and sent no credentials.
+   **Answered 2026-11-07** (release gate, [release.md Phase 6](release.md#phase-6--test-the-candidate-release-gate)):
+   on real devices, the fingerprint the app shows on first connect matches `ssh-keygen -lF
+   login.informatik.uni-freiburg.de` from a trusted machine.
 
 Answered on 2026-10-25: off-campus access needs VPN (A-12); libraries are allowed as needed (A-10);
 persistence (D-03) and Keychain (D-04) were decided by the implementer; rename everything (D-08).

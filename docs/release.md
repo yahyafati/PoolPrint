@@ -46,7 +46,7 @@ Facts from the repo that shape this plan:
 | [3](#phase-3--repository-ready-to-go-public) | 🟨 Secret scan, licence, third-party notices, README install guide (🤖 done, 👤 review pending) | 🤖 prepare · 👤 approve |
 | [4](#phase-4--release-script) | ✅ `make release`: tests, signed APK, DMG, checks, checksums, notes draft | 🤖 |
 | [5](#phase-5--release-candidate) | ✅ Build `v1.0.0-rc.1`, put it on a draft/pre-release | 👤🤖 |
-| [6](#phase-6--test-the-candidate-release-gate) | 🟨 Install the downloaded RC on real devices; run the release gate (rc.2 version bump done) | 👤 |
+| [6](#phase-6--test-the-candidate-release-gate) | ✅ Install the downloaded RC on real devices; run the release gate | 👤 |
 | [7](#phase-7--publish-v100) | Tag and publish `v1.0.0` | 👤🤖 |
 | [8](#phase-8--after-the-release) | Verify, update docs, patch-release routine | 👤🤖 |
 | [9](#phase-9-optional--automate-with-github-actions) | *(optional)* Build releases in GitHub Actions | 🤖 workflow · 👤 secrets |
@@ -442,35 +442,35 @@ quarantine and Android's install-from-unknown-sources path, which is what users 
 
 ### 6.1 Install like a user
 
-- [ ] Android: download the APK in the phone's browser → install (allow the source, Play Protect prompt) → app opens.
-- [ ] Android: `apksigner` fingerprint of the downloaded APK matches the release notes (or check on the Mac).
-- [ ] macOS: download the DMG and `SHA256SUMS.txt` in Safari → `shasum -a 256 -c --ignore-missing SHA256SUMS.txt`
+- [x] Android: download the APK in the phone's browser → install (allow the source, Play Protect prompt) → app opens.
+- [x] Android: `apksigner` fingerprint of the downloaded APK matches the release notes (or check on the Mac).
+- [x] macOS: download the DMG and `SHA256SUMS.txt` in Safari → `shasum -a 256 -c --ignore-missing SHA256SUMS.txt`
       (in Downloads) → drag to Applications → *Open Anyway* flow works → app opens. Ideally also on a second user account or Mac.
 
 ### 6.2 Blocking checks (must pass for 1.0.0)
 
 From the [roadmap](roadmap.md) checklists, the ones a new user hits on day one:
 
-- [ ] Onboarding with **copy the key** → add it on the pool account → Test connection ✓ (M1).
-- [ ] Onboarding with **"Add it for me with my pool password"** → Test connection ✓; one new line in
+- [x] Onboarding with **copy the key** → add it on the pool account → Test connection ✓ (M1).
+- [x] Onboarding with **"Add it for me with my pool password"** → Test connection ✓; one new line in
       `authorized_keys`; wrong password gives the right message and adds nothing (M4).
-- [ ] The fingerprint shown on first connect matches `ssh-keygen -lF login.informatik.uni-freiburg.de` (M1).
-- [ ] Android: **share a PDF from another app** → print to a b/w printer → correct paper output (M1).
-- [ ] macOS: print via **⌘O / Pick a PDF** and via **drag and drop** (M1, M4).
-- [ ] Copies, duplex (long edge), 2-up: output correct (M2).
-- [ ] Page count and cost show in the packaged mac app and on Android (M2, M4).
-- [ ] Restart the app / reboot the phone → print again → **no password or passphrase prompt** (M1).
-- [ ] Off campus without VPN → "Connect to the university VPN" message, not a crash or cryptic error (M1).
-- [ ] Nothing left in the pool home directory after printing (`ls -la ~` unchanged) (M1).
-- [ ] Discovery failing (e.g. VPN off then on) doesn't block printing (M3).
+- [x] The fingerprint shown on first connect matches `ssh-keygen -lF login.informatik.uni-freiburg.de` (M1).
+- [x] Android: **share a PDF from another app** → print to a b/w printer → correct paper output (M1).
+- [x] macOS: print via **⌘O / Pick a PDF** and via **drag and drop** (M1, M4).
+- [x] Copies, duplex (long edge), 2-up: output correct (M2).
+- [x] Page count and cost show in the packaged mac app and on Android (M2, M4).
+- [x] Restart the app / reboot the phone → print again → **no password or passphrase prompt** (M1).
+- [x] Off campus without VPN → "Connect to the university VPN" message, not a crash or cryptic error (M1).
+- [x] Nothing left in the pool home directory after printing (`ls -la ~` unchanged) (M1).
+- [x] Discovery failing (e.g. VPN off then on) doesn't block printing (M3).
 
 ### 6.3 Update path (needs a second build)
 
-- [ ] 🤖 Bump to `1.0.0-rc.2` / `versionCode 3` (even with no code change) and 👤 build and pre-release it.
+- [x] 🤖 Bump to `1.0.0-rc.2` / `versionCode 3` (even with no code change) and 👤 build and pre-release it.
       🤖 Bumped 2026-11-07 (`gradle.properties`, and the version line of `THIRD_PARTY_NOTICES.md`; no dependency
-      changed since rc.1). 👤 Commit, push, then `make release` → `make release-draft` → publish as a pre-release.
-- [ ] Android: install rc.2 **over** rc.1 → still onboarded, settings kept.
-- [ ] macOS: replace the app in Applications → note whether a Keychain prompt appears and whether *Always Allow*
+      changed since rc.1); 👤 published as a pre-release the same day.
+- [x] Android: install rc.2 **over** rc.1 → still onboarded, settings kept.
+- [x] macOS: replace the app in Applications → note whether a Keychain prompt appears and whether *Always Allow*
       sticks (D-04, M4 checklist).
 
 ### 6.4 Report
@@ -481,6 +481,13 @@ D-07, open questions), fixes blocking bugs (→ another RC), and writes the **kn
 every non-blocking check that's still open.
 
 **Done when:** every blocking check passes on an RC built from the commit you're about to release.
+
+✅ **Done 2026-11-07** (owner): the downloaded rc.1 and rc.2 install as described, every blocking check passes, and
+rc.2 installs over rc.1 on Android with the device still onboarded. The roadmap's M1–M4 checklists are ticked or
+annotated to match. Not reported, so not recorded: the macOS Keychain behaviour after replacing the app (D-04), the
+optional second-account/second-Mac install, and the real `lpstat`/`lpoptions`/`lpq` output (D-06, D-07 and open
+question 1 stay open). Every non-blocking check still open in the roadmap goes into the 1.0.0 known limitations
+(Phase 7). The binaries for 1.0.0 come from a new build; only docs change between rc.2 and it.
 
 ---
 

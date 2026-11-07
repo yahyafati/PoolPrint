@@ -58,28 +58,31 @@ readable result.
 *Owner, 2026-11-07: on Android (release-key build), onboarding with the pool-password key install and printing a
 PDF shared from another app work against the real server. Ticked below and in M4; the printer used wasn't recorded.*
 
-- [ ] Fresh install → onboarding → copy the public key → add it to `~/.ssh/authorized_keys` → Test connection ✓.
-- [ ] The host-key fingerprint shown matches `ssh-keygen -lF login.informatik.uni-freiburg.de` from a trusted machine.
+*Owner, 2026-11-07: the release gate ([release.md, Phase 6](release.md#phase-6--test-the-candidate-release-gate))
+passed on the downloaded `v1.0.0-rc.1`/`rc.2` files. Its checks are ticked or annotated below, in M2–M4.*
+
+- [x] Fresh install → onboarding → copy the public key → add it to `~/.ssh/authorized_keys` → Test connection ✓.
+- [x] The host-key fingerprint shown matches `ssh-keygen -lF login.informatik.uni-freiburg.de` from a trusted machine.
 - [ ] Test connection *before* adding the key gives the "Key not authorized" message.
 - [x] Share a PDF from another Android app (Files, browser, mail) → print to `tfppr1` → the paper comes out and matches the document.
       *(2026-11-07, Android; printer not recorded.)*
-- [ ] Print from the desktop file picker.
-- [ ] Copies = 2 gives two copies.
+- [x] Print from the desktop file picker.
+- [x] Copies = 2 gives two copies. *(Release gate, 2026-11-07.)*
 - [ ] Wrong printer name (simulate if possible) gives a readable error with stderr.
 - [ ] Airplane mode / no network gives "Can't reach the pool server".
 - [ ] Off campus **with** VPN: Test connection and printing work.
-- [ ] Off campus **without** VPN: you get the "Connect to the university VPN" message, not a cryptic error.
-- [ ] Printing again after restarting the app or rebooting the device: no password or passphrase prompt.
+- [x] Off campus **without** VPN: you get the "Connect to the university VPN" message, not a cryptic error.
+- [x] Printing again after restarting the app or rebooting the device: no password or passphrase prompt.
 - [ ] Large PDF (≥ 20 MB) uploads and prints; Cancel during upload stops the job.
-- [ ] Nothing is left in the pool home directory afterwards (`ls -la ~` unchanged).
-- [ ] Compare the fingerprint the app shows with `ssh-keygen -lF` (decisions.md, open question 5). The
+- [x] Nothing is left in the pool home directory afterwards (`ls -la ~` unchanged).
+- [x] Compare the fingerprint the app shows with `ssh-keygen -lF` (decisions.md, open question 5). The
       real server may offer other host-key or key-exchange algorithms than the test server; if Test
       connection fails with a protocol error, send the details text.
 - [ ] Android: share a PDF **from another app** and check that Pool Print opens its print sheet; also try
       the in-app "Pick a PDF" picker. *(Sharing works, 2026-11-07; the picker is still open.)*
 - [ ] Android: rotate the phone on the print sheet; the document stays.
 - [ ] macOS: first launch creates a Keychain item "Pool Print"; no prompt on later launches.
-- [ ] macOS: "Pick a PDF" opens the native file dialog and prints the chosen file.
+- [x] macOS: "Pick a PDF" opens the native file dialog and prints the chosen file.
 - [ ] Settings → Trusted fingerprint → Forget → confirm: the next connection asks to trust again.
 - [ ] If minification is ever enabled for release builds: install the release APK and run Test
       connection (R8 broke SSH at runtime without the BouncyCastle keep rule).
@@ -114,9 +117,12 @@ last-used printer and options.
 
 - [ ] The Print button shows the page count and cost; the estimate is `?` for a damaged PDF (try a
       renamed text file) and printing still works. Android counts pages for a PDF shared from another app.
+      *(Release gate, 2026-11-07: count and cost show on Android and in the packaged mac app; the damaged-PDF case is
+      still open.)*
 - [ ] Reopen the app: the printer, duplex, pages per sheet, orientation, fit-to-page and paper are pre-filled.
 - [ ] Duplex long edge vs short edge comes out correctly in portrait and landscape.
-- [ ] 2-up and 4-up layouts look right.
+      *(Release gate, 2026-11-07: long edge correct; short edge and landscape still open.)*
+- [ ] 2-up and 4-up layouts look right. *(Release gate, 2026-11-07: 2-up correct; 4-up still open.)*
 - [ ] **Page ranges with 2-up:** print `-o number-up=2 -o page-ranges=1` on a 4-page PDF. Do you get
       document pages 1–2 on one sheet (output-page semantics) or only page 1 (input-page semantics)?
       Record the answer in [decisions.md](decisions.md#d-07-page-range-semantics-with-number-up).
@@ -165,7 +171,8 @@ sets as presets, and see and cancel your own jobs.
 - [ ] The printer dropdown shows idle / printing / disabled for each printer; a printer that is not
       tfppr1–4 is labelled "type unknown, billed as colour".
 - [ ] Off campus without VPN (or airplane mode): the print sheet still opens, shows "Using default printer
-      settings." and printing is unaffected.
+      settings." and printing is unaffected. *(Release gate, 2026-11-07: discovery failing (VPN off, then on) didn't
+      block printing; the message itself wasn't recorded.)*
 - [ ] Settings → Refresh printers and options: shows the count and a time; a failure keeps the old data.
 - [ ] Queue shows your job while it's printing; Cancel (after the confirmation) removes it; other users' jobs have no Cancel.
 - [ ] A preset applied from the share sheet prints in ≤ 3 taps (open the dropdown, pick the preset, Print).
@@ -205,32 +212,36 @@ sets as presets, and see and cancel your own jobs.
       (check the fingerprint) → type the password → Add key → Test connection ✓ with the key. `~/.ssh/authorized_keys`
       has one new line, `ls -ld ~/.ssh` is `drwx------`. Note whether the server used `password` or
       `keyboard-interactive` and whether it asked for anything besides the password.
-      *(Works on Android, 2026-11-07. Not recorded: the `authorized_keys` and `~/.ssh` checks, and which auth method.)*
-- [ ] Password key install with a wrong password: "didn't accept the password", the field is empty, and nothing was
-      added. After the app restarts, nothing asks for the password again.
+      *(Works on Android, 2026-11-07. Release gate, same day: one new line in `authorized_keys`. Not recorded: the
+      `~/.ssh` permissions and which auth method.)*
+- [x] Password key install with a wrong password: "didn't accept the password", the field is empty, and nothing was
+      added. After the app restarts, nothing asks for the password again. *(Release gate, 2026-11-07.)*
 - [ ] Add a device: on a second device (e.g. the phone) copy its key from onboarding, paste it in Settings → Add a
       device… on the Mac → "Added". On the phone, Test connection succeeds. Check that `~/.ssh/authorized_keys`
       on the server has one new line and that `ls -ld ~/.ssh` is `drwx------`.
 - [ ] Drag a PDF from Finder onto the window → a "Drop a PDF to print it" hint shows while hovering and
       the print sheet opens on drop. Dragging a non-PDF shows "Only PDF files can be printed."
+      *(Release gate, 2026-11-07: printing via drag and drop works; the hint and the non-PDF message weren't recorded.)*
 - [ ] Drop a PDF while a job is uploading: nothing changes. Drop one while Settings or Queue is open: the
       print sheet is waiting when you leave.
 - [ ] ⌘O opens the file dialog; ⌘P prints from the print sheet and is greyed out elsewhere (home,
-      Settings, while sending, with invalid page ranges).
+      Settings, while sending, with invalid page ranges). *(Release gate, 2026-11-07: printing via ⌘O works; ⌘P
+      still open.)*
 - [ ] The window can't be shrunk below a usable size; the print sheet is readable at the minimum.
 - [ ] Right-click a PDF in Finder → Open With → Pool Print, both while the app is closed and while it's running.
 - [ ] Open With on a PDF does not take over double-click: Preview stays the default viewer.
 - [ ] The app shows the lime printer-slot icon in the Dock and in the `.dmg` window, and is named "Pool Print".
 - [ ] Android launcher shows the lime printer-slot icon under circle and squircle masks, and with themed icons on
       (Android 13+) the monochrome glyph is tinted like the other apps.
-- [ ] In the installed app, print a PDF: the page count appears (PDFBox works inside the jlink runtime)
-      and Test connection works (sshj does too).
+- [x] In the installed app, print a PDF: the page count appears (PDFBox works inside the jlink runtime)
+      and Test connection works (sshj does too). *(Release gate, 2026-11-07.)*
 - [ ] Install from the `.dmg` on a clean user account; first launch gets past Gatekeeper (expect the "unidentified developer" prompt).
 - [ ] Keychain item shows up in Keychain Access under "Pool Print" and survives an app restart.
 - [ ] The existing `~/.ssh` key option works, including with a passphrase-protected key (asked once,
       then never again).
 - [ ] After installing an updated `.dmg`: note whether macOS asks for Keychain access, and whether
-      "Always Allow" sticks.
+      "Always Allow" sticks. *(rc.1 → rc.2 was installed over in the release gate, 2026-11-07; the Keychain
+      behaviour wasn't reported yet.)*
 
 ---
 
@@ -262,5 +273,6 @@ notes and a clear "vibe-coded, provided as is" notice. The phases, owner/agent s
   built commit.
 - ✅ Phase 5 — release candidate (2026-11-07): `v1.0.0-rc.1` published as a pre-release on
   `b80b3b6`, with the APK, DMG, notices and `SHA256SUMS.txt`. Next: 👤 Phase 6, test the downloaded files.
-- 🟨 Phase 6 — release gate: version bumped to `1.0.0-rc.2` / `versionCode 3` for the update-path test (6.3,
-  2026-11-07). Waiting for 👤 the install, blocking and update checks on real devices.
+- ✅ Phase 6 — release gate (2026-11-07): the downloaded `v1.0.0-rc.1` and `rc.2` install like a user's copy, every
+  blocking check passes, and rc.2 installs over rc.1. Ticked in the M1–M4 checklists above; what's still open there
+  goes into the 1.0.0 known limitations. Next: 🤖 Phase 7, prepare `1.0.0`.
