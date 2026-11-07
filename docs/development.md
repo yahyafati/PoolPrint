@@ -40,6 +40,8 @@ Rules for anyone working on this repo: human contributors and AI coding agents. 
 | One test class | `./gradlew :shared:jvmTest --tests "com.yahyafati.poolprint.core.command.LprCommandBuilderTest"` |
 | Standalone test SSH server (emulator at `10.0.2.2:2222`) | `./gradlew :shared:runTestSshServer` |
 | Build-logic tests (version parsing) | `./gradlew :buildSrc:test` (`make test-build`; `make test-all` runs every suite) |
+| Release files (tests, release-key APK, DMG, checks, checksums, notes) | `make release` → `build/release/<version>/` ([release.md, Phase 4](release.md#how-the-release-script-works)) |
+| Draft GitHub release from those files | `make release-draft` (needs `gh`; publishing stays manual) |
 | macOS Keychain test (touches the real login keychain) | `POOLPRINT_KEYCHAIN_TEST=1 ./gradlew :shared:jvmTest --tests '*MacKeychain*'` |
 
 **Release signing (Android).** `release` builds are signed with the release key when the four

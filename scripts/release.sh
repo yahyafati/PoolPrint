@@ -1,0 +1,317 @@
+#!/bin/bash
+# Pool Print release script (docs/release.md, Phase 4). Run it through make:
+#
+#   make release         scripts/release.sh build   tests, signed APK, DMG, checks, checksums, notes draft
+#   make release-draft   scripts/release.sh draft   a *draft* GitHub release with those files (gh)
+#
+# The version comes from gradle.properties (Phase 2). Output: build/release/<version>/.
+# Runs on the owner's Mac (D-22). Never prints signing values; Gradle reads them from local.properties itself.
+# Bash 3.2 compatible (macOS /bin/bash).
+
+set -euo pipefail
+
+# The release certificate from docs/release.md, Phase 1.5. Public: it is in every APK we ship.
+RELEASE_CERT_SHA256=0260ccfe30cadbf9d5f65bd5a4eb160704d5557f3d978a607d0e86ff7532a269
+APP_ID=com.yahyafati.poolprint
+MAC_ARCH=arm64 # D-22: Apple Silicon only
+MAC_APP_NAME="Pool Print.app"
+APK_BUILT=androidApp/build/outputs/apk/release/androidApp-release.apk
+DMG_BUILT_DIR=desktopApp/build/compose/binaries/main-release/dmg
+NOTES_TEMPLATE=scripts/release-notes.template.md
+# The line the owner deletes after reviewing the notes; `draft` refuses while it is there.
+NOTES_REVIEW_MARKER='<!-- Edit:'
+# Same rule as buildSrc/PoolPrintVersion.kt.
+VERSION_RE='^[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.[1-9][0-9]*)?$'
+
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$ROOT"
+
+die() {
+    echo >&2
+    echo "release: $*" >&2
+    exit 1
+}
+step() { printf '\n==> %s\n' "$*"; }
+info() { echo "    $*"; }
+
+MOUNT_DIR=
+cleanup() {
+    if [ -n "$MOUNT_DIR" ]; then
+        hdiutil detach "$MOUNT_DIR" -quiet >/dev/null 2>&1 || hdiutil detach "$MOUNT_DIR" -force -quiet >/dev/null 2>&1 || true
+        rmdir "$MOUNT_DIR" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
+
+# --- Version ----------------------------------------------------------------------------------------------------
+
+gradle_property() {
+    # Last assignment wins, as in java.util.Properties.
+    grep -E "^[[:space:]]*$1[[:space:]]*=" gradle.properties | tail -n 1 | cut -d= -f2- | tr -d '[:space:]'
+}
+
+read_version() {
+    VERSION=$(gradle_property poolprint.versionName)
+    VERSION_CODE=$(gradle_property poolprint.versionCode)
+    grep -Eq "$VERSION_RE" <<<"$VERSION" ||
+        die "poolprint.versionName in gradle.properties must be MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-rc.N, got '$VERSION'."
+    grep -Eq '^[1-9][0-9]*$' <<<"$VERSION_CODE" ||
+        die "poolprint.versionCode in gradle.properties must be a whole number from 1, got '$VERSION_CODE'."
+    MAC_VERSION=${VERSION%%-*}
+    TAG="v$VERSION"
+    case "$VERSION" in
+        *-rc.*) IS_RC=1 ;;
+        *) IS_RC= ;;
+    esac
+    OUT_DIR="build/release/$VERSION"
+    APK_NAME="PoolPrint-$VERSION-android.apk"
+    DMG_NAME="PoolPrint-$VERSION-macos-$MAC_ARCH.dmg"
+}
+
+# --- Checks (each one stops the release) ------------------------------------------------------------------------
+
+require_macos_arm64() {
+    [ "$(uname -s)" = Darwin ] || die "Releases are built on macOS (the DMG needs jpackage on a Mac)."
+    [ "$(uname -m)" = "$MAC_ARCH" ] ||
+        die "This Mac is $(uname -m); releases ship a $MAC_ARCH DMG (D-22) and jpackage can't cross-build."
+}
+
+require_clean_tree() {
+    local dirty
+    dirty=$(git status --porcelain)
+    [ -z "$dirty" ] || die "The working tree isn't clean. Commit or stash first:
+$dirty"
+}
+
+fetch_tags() {
+    # Best effort: GitHub creates the tag when a release is published, so the checkout may not know it yet.
+    if ! git fetch --quiet --tags origin 2>/dev/null; then
+        info "warning: couldn't fetch from origin; checking local tags only."
+    fi
+}
+
+require_new_tag() {
+    if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+        die "Tag $TAG already exists. Bump poolprint.versionName and poolprint.versionCode in gradle.properties."
+    fi
+}
+
+find_build_tools() {
+    local sdk="" bt
+    if [ -f local.properties ]; then
+        sdk=$(grep -E '^sdk\.dir=' local.properties | tail -n 1 | cut -d= -f2- || true)
+    fi
+    [ -n "$sdk" ] || sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}
+    [ -n "$sdk" ] && [ -d "$sdk/build-tools" ] ||
+        die "Android SDK not found (sdk.dir in local.properties, ANDROID_HOME or ANDROID_SDK_ROOT)."
+    bt=$(ls "$sdk/build-tools" | sort -V | tail -n 1)
+    BUILD_TOOLS="$sdk/build-tools/$bt"
+    [ -x "$BUILD_TOOLS/apksigner" ] && [ -x "$BUILD_TOOLS/aapt2" ] ||
+        die "apksigner/aapt2 not found in $BUILD_TOOLS."
+}
+
+# check_apk <apk>: signed with the release certificate, by exactly one signer, with the expected id and version.
+check_apk() {
+    local apk=$1 certs digests badging
+    [ -f "$apk" ] || die "APK not found: $apk"
+    certs=$("$BUILD_TOOLS/apksigner" verify --print-certs "$apk" 2>&1) ||
+        die "apksigner rejects the APK:
+$certs"
+    digests=$(echo "$certs" | sed -n 's/^Signer #[0-9]* certificate SHA-256 digest: //p')
+    if [ "$digests" != "$RELEASE_CERT_SHA256" ]; then
+        die "APK is not signed with the release key.
+    expected: $RELEASE_CERT_SHA256
+    found:    $(echo "$digests" | tr '\n' ' ')
+Set the poolprint.signing.* keys in local.properties (docs/release.md, Phase 1) and build from the main checkout."
+    fi
+    info "certificate: $(echo "$certs" | sed -n 's/^Signer #1 certificate DN: //p'), SHA-256 matches"
+    # The whole output, then its first line: `| head -n 1` would SIGPIPE aapt2 and trip pipefail.
+    badging=$("$BUILD_TOOLS/aapt2" dump badging "$apk" 2>/dev/null) || die "aapt2 can't read the APK: $apk"
+    badging=${badging%%$'\n'*}
+    grep -q "name='$APP_ID'" <<<"$badging" || die "APK package isn't $APP_ID: $badging"
+    grep -q "versionCode='$VERSION_CODE'" <<<"$badging" ||
+        die "APK versionCode doesn't match gradle.properties ($VERSION_CODE): $badging"
+    grep -q "versionName='$VERSION'" <<<"$badging" ||
+        die "APK versionName doesn't match gradle.properties ($VERSION): $badging"
+    info "package: $APP_ID, versionCode $VERSION_CODE, versionName $VERSION"
+}
+
+# check_app <Pool Print.app>: identifier, architecture, version and an intact (ad-hoc) signature.
+check_app() {
+    local app=$1 sig plist id short
+    [ -d "$app" ] || die "App bundle not found: $app"
+    sig=$(codesign -dv "$app" 2>&1) || die "codesign can't read the app's signature:
+$sig"
+    grep -qx "Identifier=$APP_ID" <<<"$sig" || die "App identifier isn't $APP_ID:
+$sig"
+    grep -q "^Format=app bundle with Mach-O thin ($MAC_ARCH)$" <<<"$sig" ||
+        die "App isn't a $MAC_ARCH-only bundle:
+$(echo "$sig" | grep '^Format=')"
+    codesign --verify --deep --strict "$app" 2>/dev/null || die "The app's signature doesn't verify (codesign --verify --deep --strict)."
+    plist="$app/Contents/Info.plist"
+    id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")
+    short=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")
+    [ "$id" = "$APP_ID" ] || die "Info.plist CFBundleIdentifier is '$id', expected $APP_ID."
+    [ "$short" = "$MAC_VERSION" ] || die "Info.plist version is '$short', expected $MAC_VERSION."
+    info "app: $APP_ID, $MAC_ARCH, version $short, $(echo "$sig" | sed -n 's/^Signature=//p') signature verifies"
+}
+
+# check_dmg <dmg>: mounts read-only and checks the Pool Print.app inside it (the bundle users actually get).
+check_dmg() {
+    local dmg=$1
+    [ -f "$dmg" ] || die "DMG not found: $dmg"
+    MOUNT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/poolprint-dmg.XXXXXX")
+    hdiutil attach -readonly -nobrowse -noautoopen -mountpoint "$MOUNT_DIR" "$dmg" -quiet ||
+        die "The DMG doesn't mount: $dmg"
+    [ -d "$MOUNT_DIR/$MAC_APP_NAME" ] || die "The DMG doesn't contain $MAC_APP_NAME."
+    info "DMG mounts and contains $MAC_APP_NAME"
+    check_app "$MOUNT_DIR/$MAC_APP_NAME"
+    cleanup
+    MOUNT_DIR=
+}
+
+# --- Release files ----------------------------------------------------------------------------------------------
+
+# write_notes <file>: the template with the version, file names, certificate and the commits since the last release.
+write_notes() {
+    local out=$1 since range changes
+    since=$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-rc.*' HEAD 2>/dev/null || true)
+    if [ -n "$since" ]; then
+        range="$since..HEAD"
+    else
+        range=HEAD
+        since="the first commit"
+    fi
+    changes=$(mktemp "${TMPDIR:-/tmp}/poolprint-changes.XXXXXX")
+    git log --no-merges --reverse --pretty='- %s' "$range" >"$changes"
+    [ -s "$changes" ] || echo "- …" >"$changes"
+    # All substituted values are checked (version pattern, fixed names, hex digest, tag), so they are safe in awk.
+    awk -v version="$VERSION" -v apk="$APK_NAME" -v dmg="$DMG_NAME" -v cert="$RELEASE_CERT_SHA256" \
+        -v since="$since" -v rc="$IS_RC" -v changes="$changes" '
+        $0 == "{{CHANGES}}" { while ((getline line < changes) > 0) print line; close(changes); next }
+        $0 == "{{PRERELEASE_NOTE}}" {
+            if (rc) { print ""; print "**Release candidate** for testing, published as a pre-release. Expect rough edges." }
+            next
+        }
+        {
+            gsub(/\{\{VERSION\}\}/, version); gsub(/\{\{APK\}\}/, apk); gsub(/\{\{DMG\}\}/, dmg)
+            gsub(/\{\{CERT_SHA256\}\}/, cert); gsub(/\{\{SINCE\}\}/, since)
+            print
+        }' "$NOTES_TEMPLATE" >"$out"
+    rm -f "$changes"
+    if grep -q '{{' "$out"; then die "Unfilled placeholder in $out (check $NOTES_TEMPLATE)."; fi
+}
+
+cmd_build() {
+    read_version
+    echo "Pool Print release $VERSION (versionCode $VERSION_CODE, macOS package $MAC_VERSION, tag $TAG)"
+
+    step "1/8 Checking the checkout"
+    require_macos_arm64
+    require_clean_tree
+    fetch_tags
+    require_new_tag
+    find_build_tools
+    local commit
+    commit=$(git rev-parse HEAD)
+    info "commit $commit, tree clean, $TAG is new"
+
+    step "2/8 Running every test suite (make test-all)"
+    make --no-print-directory test-all
+
+    step "3/8 Building the release APK and DMG"
+    ./gradlew :androidApp:assembleRelease :desktopApp:packageReleaseDmg
+
+    step "4/8 Checking the APK"
+    check_apk "$APK_BUILT"
+
+    step "5/8 Checking the DMG and app bundle"
+    local dmg_built="$DMG_BUILT_DIR/Pool Print-$MAC_VERSION.dmg"
+    check_dmg "$dmg_built"
+
+    step "6/8 Copying the release files into $OUT_DIR"
+    # Keep notes the owner already edited for this version; delete the file to regenerate it.
+    local kept_notes=
+    if [ -f "$OUT_DIR/release-notes.md" ]; then
+        kept_notes=$(mktemp "${TMPDIR:-/tmp}/poolprint-notes.XXXXXX")
+        cp "$OUT_DIR/release-notes.md" "$kept_notes"
+    fi
+    rm -rf "$OUT_DIR"
+    mkdir -p "$OUT_DIR"
+    cp "$APK_BUILT" "$OUT_DIR/$APK_NAME"
+    cp "$dmg_built" "$OUT_DIR/$DMG_NAME"
+    cp THIRD_PARTY_NOTICES.md "$OUT_DIR/THIRD_PARTY_NOTICES.md"
+    # Not uploaded: tells `draft` which commit these files come from (the tag goes there).
+    echo "$commit" >"$OUT_DIR/.release-commit"
+    # The copies are what ships, so check them again.
+    check_apk "$OUT_DIR/$APK_NAME"
+    info "copied $APK_NAME, $DMG_NAME, THIRD_PARTY_NOTICES.md"
+
+    step "7/8 Writing SHA256SUMS.txt"
+    (cd "$OUT_DIR" && shasum -a 256 "$APK_NAME" "$DMG_NAME" THIRD_PARTY_NOTICES.md >SHA256SUMS.txt && sed 's/^/    /' SHA256SUMS.txt)
+
+    step "8/8 Writing release-notes.md"
+    if [ -n "$kept_notes" ]; then
+        mv "$kept_notes" "$OUT_DIR/release-notes.md"
+        info "kept your existing release-notes.md (delete it and rerun to regenerate)"
+    else
+        write_notes "$OUT_DIR/release-notes.md"
+        info "drafted from $NOTES_TEMPLATE with the commits since the last release"
+    fi
+
+    echo
+    echo "Done: $OUT_DIR"
+    ls -l "$OUT_DIR" | sed '1d; s/^/    /'
+    echo
+    echo "Next: edit $OUT_DIR/release-notes.md (then delete its '$NOTES_REVIEW_MARKER …' line), push $commit, and run"
+    echo "    make release-draft"
+}
+
+cmd_draft() {
+    read_version
+    local commit pre=
+    [ -d "$OUT_DIR" ] || die "$OUT_DIR doesn't exist. Run 'make release' first."
+    for f in "$APK_NAME" "$DMG_NAME" THIRD_PARTY_NOTICES.md SHA256SUMS.txt release-notes.md .release-commit; do
+        [ -f "$OUT_DIR/$f" ] || die "$OUT_DIR/$f is missing. Run 'make release' again."
+    done
+    command -v gh >/dev/null || die "The GitHub CLI (gh) isn't installed: brew install gh"
+    gh auth status >/dev/null 2>&1 || die "gh isn't logged in: gh auth login"
+
+    step "Checking the release files"
+    (cd "$OUT_DIR" && shasum -a 256 -c SHA256SUMS.txt | sed 's/^/    /') || die "Checksums don't match; run 'make release' again."
+    if grep -qF "$NOTES_REVIEW_MARKER" "$OUT_DIR/release-notes.md"; then
+        die "Review $OUT_DIR/release-notes.md first, then delete its '$NOTES_REVIEW_MARKER …' line."
+    fi
+    if grep -q '…' "$OUT_DIR/release-notes.md"; then
+        info "warning: release-notes.md still contains '…' placeholders."
+    fi
+
+    step "Checking the commit and tag"
+    commit=$(tr -d '[:space:]' <"$OUT_DIR/.release-commit")
+    grep -Eq '^[0-9a-f]{40}$' <<<"$commit" || die "$OUT_DIR/.release-commit is damaged; run 'make release' again."
+    git fetch --quiet --tags origin || die "Couldn't fetch from origin."
+    require_new_tag
+    [ -n "$(git branch -r --contains "$commit" 2>/dev/null)" ] ||
+        die "Commit $commit (the one these files were built from) isn't pushed to GitHub yet. Push it first."
+    if gh release view "$TAG" >/dev/null 2>&1; then
+        die "A GitHub release $TAG already exists (maybe an earlier draft). Delete it on GitHub, or bump the version."
+    fi
+    info "commit $commit is on origin; no tag or release $TAG yet"
+
+    if [ -n "$IS_RC" ]; then pre=--prerelease; fi
+    step "Creating the draft release $TAG${pre:+ (pre-release)}"
+    gh release create "$TAG" --draft $pre --target "$commit" --title "Pool Print $VERSION" \
+        --notes-file "$OUT_DIR/release-notes.md" \
+        "$OUT_DIR/$APK_NAME" "$OUT_DIR/$DMG_NAME" "$OUT_DIR/THIRD_PARTY_NOTICES.md" "$OUT_DIR/SHA256SUMS.txt"
+    echo
+    echo "Draft created; only you can see it. Review it on GitHub and publish it there (that creates the tag $TAG)."
+}
+
+# Sourcing the script (for tests) defines the functions without running anything.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    case "${1:-}" in
+        build) cmd_build ;;
+        draft) cmd_draft ;;
+        *) die "usage: $0 build|draft (or: make release, make release-draft)" ;;
+    esac
+fi

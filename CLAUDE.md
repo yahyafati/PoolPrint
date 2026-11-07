@@ -31,6 +31,7 @@ Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a 
 ## Commands
 
 - `Makefile` wraps the common tasks (`make help`). Release is the default, `BUILD=debug` switches; `make install-phone` (adb), `make install-pc` (copies the app to `/Applications`), `make install` does both. Release Android builds are signed with the release key from the `poolprint.signing.*` keys in `local.properties` (or `POOLPRINT_SIGNING_*` env vars), falling back to the debug key with a warning when those are missing (docs/release.md, Phase 1); desktop release builds have ProGuard disabled (sshj/BouncyCastle/JNA use reflection).
+- Release: `make release` (`scripts/release.sh build`) refuses a dirty tree or an existing `v<version>` tag, runs `make test-all`, builds the APK and DMG, refuses an APK not signed with the release certificate (SHA-256 constant in the script), checks the DMG's bundle, and writes `build/release/<version>/` (stable file names, `SHA256SUMS.txt`, `release-notes.md` from `scripts/release-notes.template.md`). `make release-draft` then creates a **draft** GitHub release with `gh`; publishing stays manual (docs/release.md, Phase 4). Agents never push, tag or publish.
 - Android debug APK: `./gradlew :androidApp:assembleDebug`
 - Desktop run: `./gradlew :desktopApp:run`
 - Desktop with hot reload: `./gradlew :desktopApp:hotRun --auto`

@@ -44,7 +44,7 @@ Facts from the repo that shape this plan:
 | [1](#phase-1--android-release-signing-key) | ✅ Create and back up the Android release key; wire it into Gradle | 👤 key · 🤖 Gradle |
 | [2](#phase-2--one-version-number) | ✅ One version source for both apps; show the version in Settings | 🤖 |
 | [3](#phase-3--repository-ready-to-go-public) | 🟨 Secret scan, licence, third-party notices, README install guide (🤖 done, 👤 review pending) | 🤖 prepare · 👤 approve |
-| [4](#phase-4--release-script) | `make release`: tests, signed APK, DMG, checks, checksums, notes draft | 🤖 |
+| [4](#phase-4--release-script) | ✅ `make release`: tests, signed APK, DMG, checks, checksums, notes draft | 🤖 |
 | [5](#phase-5--release-candidate) | Build `v1.0.0-rc.1`, put it on a draft/pre-release | 👤🤖 |
 | [6](#phase-6--test-the-candidate-release-gate) | Install the downloaded RC on real devices; run the release gate | 👤 |
 | [7](#phase-7--publish-v100) | Tag and publish `v1.0.0` | 👤🤖 |
@@ -333,8 +333,9 @@ first on Android: that deletes the device key and you'd have to onboard again.
 ## Phase 4 — Release script
 
 🤖 **Agent.** One command that turns a clean checkout into release files, so every release is built the same way.
+✅ Done 2026-11-07 (see [how it works](#how-the-release-script-works)).
 
-- [ ] `make release` (in the `Makefile`, the logic in `scripts/release.sh` if it gets long). It must:
+- [x] `make release` (in the `Makefile`, the logic in `scripts/release.sh` if it gets long). It must:
   1. refuse to run unless the working tree is clean and the version's tag doesn't exist yet;
   2. run `make test-all`;
   3. build `:androidApp:assembleRelease` and `:desktopApp:packageReleaseDmg`;
@@ -347,15 +348,64 @@ first on Android: that deletes the device key and you'd have to onboard again.
   7. write `SHA256SUMS.txt` (`shasum -a 256`);
   8. write `release-notes.md` from the [template](#release-notes-template), with the commits since the last tag
      pre-filled for you to edit.
-- [ ] `make release-draft`: runs `gh release create v<version> --draft [--prerelease] --title … --notes-file …`
+- [x] `make release-draft`: runs `gh release create v<version> --draft [--prerelease] --title … --notes-file …`
       with the files above. Draft releases are visible only to you, so this is safe to run; **publishing** stays a
       separate, manual click or command.
-- [ ] Document both targets in `make help`, `CLAUDE.md` and `development.md`.
+- [x] Document both targets in `make help`, `CLAUDE.md` and `development.md`.
 
 The agent can test everything up to the APK certificate check without your key (it will fail the check, as
 intended, on a debug-signed build).
 
 **Done when:** on your Mac, `make release` produces the folder with two binaries, notices, checksums and notes.
+
+### How the release script works
+
+`make release` runs `scripts/release.sh build`, `make release-draft` runs `scripts/release.sh draft`. Both always
+build `release` (they ignore `BUILD=`), take the version from `gradle.properties`, and stop at the first failed
+check with a message saying what to do.
+
+`make release`, in order:
+
+1. **Checkout**: macOS on arm64 (D-22), `git status --porcelain` empty (untracked files count), tags fetched from
+   `origin` (best effort, since GitHub creates the tag only on publish), and no tag `v<version>` yet.
+2. `make test-all`.
+3. `./gradlew :androidApp:assembleRelease :desktopApp:packageReleaseDmg`.
+4. **APK**: `apksigner verify --print-certs` must show exactly one signer with the release certificate SHA-256
+   (Phase 1.5, a constant at the top of the script); otherwise "APK is not signed with the release key". `aapt2 dump
+   badging` must show `com.yahyafati.poolprint` and the `versionCode`/`versionName` from `gradle.properties`.
+   The SDK comes from `sdk.dir` in `local.properties`, else `ANDROID_HOME`/`ANDROID_SDK_ROOT`.
+5. **DMG**: mounted read-only (`hdiutil attach -nobrowse`), must contain `Pool Print.app`; that bundle (the one users
+   get) must show `Identifier=com.yahyafati.poolprint` and `Mach-O thin (arm64)` in `codesign -dv`, pass
+   `codesign --verify --deep --strict`, and have the numeric version in `Info.plist`.
+6. Copies into `build/release/<version>/` (git-ignored): `PoolPrint-<version>-android.apk`,
+   `PoolPrint-<version>-macos-arm64.dmg`, `THIRD_PARTY_NOTICES.md`, plus a hidden `.release-commit` with the commit
+   the files were built from (not uploaded). The copied APK is checked again.
+7. `SHA256SUMS.txt` over the APK, the DMG and the notices (`shasum -a 256`).
+8. `release-notes.md` from [`scripts/release-notes.template.md`](../scripts/release-notes.template.md): version,
+   file names, certificate SHA-256, a release-candidate line for `-rc.N`, and under *What's new* every non-merge
+   commit since the last **final** release tag (RC tags are skipped, so `1.0.0` lists everything since the previous
+   final release, not just since its last RC). If `release-notes.md` already exists for this version (a rerun after
+   you edited it), it is kept; delete it to regenerate.
+
+`make release-draft`:
+
+- needs `gh` logged in, all files present, `shasum -c` passing, and the `<!-- Edit: … -->` line deleted from
+  `release-notes.md` (that's how it knows you've reviewed the notes; it only warns about leftover `…`);
+- fetches from `origin` and refuses if the tag already exists, if a release `v<version>` (e.g. an earlier draft)
+  already exists, or if the built commit isn't on any remote branch yet (push it first; the script never pushes);
+- runs `gh release create v<version> --draft [--prerelease] --target <built commit> --title "Pool Print <version>"
+  --notes-file release-notes.md` with the APK, DMG, notices and `SHA256SUMS.txt`. `--prerelease` is set for
+  `-rc.N`. `--target` makes GitHub create the tag on the commit the files came from when you publish.
+
+**Checked 2026-11-07** (by the agent, without the release key in play): on the existing release-key APK and DMG the
+APK, DMG and bundle checks pass and the mount is cleaned up; the notes draft fills every placeholder; `make release`
+refuses a dirty tree, an existing tag, and bad `versionName`/`versionCode` values; `make release-draft` refuses a
+missing build folder. End to end in a scratch clone without the `poolprint.signing.*` keys, it ran the tests, built
+both binaries and stopped at step 4 with "APK is not signed with the release key", as intended. With the expected
+digest switched to the debug certificate (in that scratch copy only), it ran through step 8: the folder with both
+binaries, notices, checksums and notes; a rerun kept the edited notes; `make release-draft` refused while the
+`<!-- Edit` line was there and then because the commit wasn't pushed. Not run: a full `make release` with the release
+key, and `make release-draft` against GitHub (👤 Phase 5).
 
 ---
 
@@ -388,8 +438,8 @@ quarantine and Android's install-from-unknown-sources path, which is what users 
 
 - [ ] Android: download the APK in the phone's browser → install (allow the source, Play Protect prompt) → app opens.
 - [ ] Android: `apksigner` fingerprint of the downloaded APK matches the release notes (or check on the Mac).
-- [ ] macOS: download the DMG in Safari → `shasum -a 256 -c SHA256SUMS.txt` (in Downloads, ignoring the missing APK
-      line) → drag to Applications → *Open Anyway* flow works → app opens. Ideally also on a second user account or Mac.
+- [ ] macOS: download the DMG and `SHA256SUMS.txt` in Safari → `shasum -a 256 -c --ignore-missing SHA256SUMS.txt`
+      (in Downloads) → drag to Applications → *Open Anyway* flow works → app opens. Ideally also on a second user account or Mac.
 
 ### 6.2 Blocking checks (must pass for 1.0.0)
 
@@ -447,6 +497,9 @@ The binaries in `1.0.0` must come from this build, not from an RC: the `versionC
 
 ### Release notes template
 
+The script fills [`scripts/release-notes.template.md`](../scripts/release-notes.template.md) (Phase 4); edit that
+file to change the notes of every release. Filled in for 1.0.0 it reads:
+
 ```markdown
 Pool Print 1.0.0. Print PDFs on the Uni Freiburg TF pool printers from Android or macOS.
 
@@ -460,10 +513,12 @@ Pool Print 1.0.0. Print PDFs on the Uni Freiburg TF pool printers from Android o
 |---|---|
 | `PoolPrint-1.0.0-android.apk` | Android 10+ |
 | `PoolPrint-1.0.0-macos-arm64.dmg` | macOS 12+ on Apple Silicon |
+| `THIRD_PARTY_NOTICES.md` | Licences of the bundled libraries |
 
 Install steps: see the README → Install. Off campus you need the university VPN.
 
 ## What's new
+<!-- Edit: commits since v…, pre-filled by `make release`. Keep what a user would notice. -->
 - …
 
 ## Known limitations
@@ -473,7 +528,7 @@ Install steps: see the README → Install. Off campus you need the university VP
 
 ## Verify
 - SHA-256 checksums: `SHA256SUMS.txt`
-- Android signing certificate SHA-256: `…`
+- Android signing certificate SHA-256: `0260ccfe30cadbf9d5f65bd5a4eb160704d5557f3d978a607d0e86ff7532a269`
 ```
 
 **Done when:** `https://github.com/yahyafati/PoolPrint/releases/latest` shows 1.0.0 with all files.

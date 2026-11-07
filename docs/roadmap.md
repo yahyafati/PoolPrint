@@ -249,3 +249,9 @@ notes and a clear "vibe-coded, provided as is" notice. The phases, owner/agent s
   items for the owner; `LICENSE`, `THIRD_PARTY_NOTICES.md`, README top with notice/Download/Install, `SECURITY.md`,
   bug-report template, licence and notices rows in Settings → About). Waiting for 👤 review of the scan, licence and
   README, then the visibility switch.
+- ✅ Phase 4 — release script (2026-11-07): `make release` (`scripts/release.sh build`) refuses a dirty tree or an
+  existing tag, runs `make test-all`, builds the APK and DMG, checks the APK certificate against the release
+  SHA-256 and its version, mounts the DMG and checks the bundle (identifier, arm64, signature, version), and writes
+  `build/release/<version>/` with stable file names, `SHA256SUMS.txt` and a `release-notes.md` draft from
+  `scripts/release-notes.template.md`; `make release-draft` creates a draft (pre-)release with `gh`, targeted at the
+  built commit. Manual: 👤 run both on the Mac with the release key (Phase 5).

@@ -5,6 +5,8 @@
 # (docs/release.md, Phase 1); without them they fall back to the debug key, with a warning: fine for your own
 # devices, not for distribution.
 # Several devices attached? Pick one with `make install-phone DEVICE=<serial>` (see `make devices`).
+# `make release` / `make release-draft` ignore BUILD: they always build release and refuse a debug-signed APK
+# (scripts/release.sh, docs/release.md Phase 4).
 
 BUILD ?= release
 DEVICE ?=
@@ -44,7 +46,8 @@ endif
 
 .DEFAULT_GOAL := help
 .PHONY: help all build android desktop dmg install install-phone install-pc install-apk uninstall-phone uninstall-pc \
-        launch-phone run-pc run-pc-dev hot-reload test test-android test-build test-all ssh-server devices clean
+        launch-phone run-pc run-pc-dev hot-reload test test-android test-build test-all release release-draft ssh-server \
+        devices clean
 
 help: ## Show this help
 	@echo "BUILD=$(BUILD)  (override with BUILD=debug)"
@@ -107,6 +110,14 @@ endif
 
 hot-reload: ## Run the desktop app with Compose hot reload
 	$(GRADLE) :desktopApp:hotRun --auto
+
+# --- Release (docs/release.md, Phase 4) --------------------------------------------------------------------------
+
+release: ## Release files into build/release/<version>/: tests, release-key APK, DMG, checks, checksums, notes
+	scripts/release.sh build
+
+release-draft: ## Draft GitHub release (gh) from build/release/<version>/; publishing stays manual
+	scripts/release.sh draft
 
 # --- Test and misc -----------------------------------------------------------------------------------------------
 
