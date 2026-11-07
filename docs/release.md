@@ -41,7 +41,7 @@ Facts from the repo that shape this plan:
 | Phase | What | Who |
 |---|---|---|
 | [0](#phase-0--decisions) | ✅ Decide visibility, licence, versioning, macOS signing, architectures, release gate | 👤 |
-| [1](#phase-1--android-release-signing-key) | Create and back up the Android release key; wire it into Gradle | 👤 key · 🤖 Gradle |
+| [1](#phase-1--android-release-signing-key) | ✅ Create and back up the Android release key; wire it into Gradle | 👤 key · 🤖 Gradle |
 | [2](#phase-2--one-version-number) | One version source for both apps; show the version in Settings | 🤖 |
 | [3](#phase-3--repository-ready-to-go-public) | Secret scan, licence, third-party notices, README install guide | 🤖 prepare · 👤 approve |
 | [4](#phase-4--release-script) | `make release`: tests, signed APK, DMG, checks, checksums, notes draft | 🤖 |
@@ -172,7 +172,7 @@ SDK=$(grep '^sdk.dir=' local.properties | cut -d= -f2-); "$SDK"/build-tools/$(ls
 Send the `SHA-256 digest` line to the agent. It is **public** (it's in every APK) and goes into this doc, the release
 notes and the release script, so users and the script can check that an APK really is yours.
 
-> Release certificate SHA-256: `TBD after Phase 1`
+> Release certificate SHA-256: `0260ccfe30cadbf9d5f65bd5a4eb160704d5557f3d978a607d0e86ff7532a269`
 
 ### 1.6 👤 Switch your own installs over
 
@@ -183,6 +183,11 @@ key the device uses), uninstall Pool Print, install the release-key build, onboa
 **Done when:** `make android` produces an APK whose certificate matches the recorded fingerprint, and nothing
 secret is in git (`git status` clean, `git check-ignore local.properties` prints the path,
 `git log -p --all | grep -i 'jks\|poolprint.signing'` finds only `.gitignore`, the build script and docs).
+
+✅ **Done 2026-11-07.** The release APK is signed by `CN=Yahya Fati, O=Pool Print` with the SHA-256 above; the
+owner's phone runs the release-key build and is onboarded again. History check: no keystore or `local.properties`
+was ever committed, and the only `poolprint.signing.*` lines are this guide's examples (passwords as
+`<password>`), the build script and docs.
 
 ---
 
