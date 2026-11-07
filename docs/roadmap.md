@@ -55,10 +55,14 @@ readable result.
 
 ### Manual test checklist (owner, against the real server)
 
+*Owner, 2026-11-07: on Android (release-key build), onboarding with the pool-password key install and printing a
+PDF shared from another app work against the real server. Ticked below and in M4; the printer used wasn't recorded.*
+
 - [ ] Fresh install → onboarding → copy the public key → add it to `~/.ssh/authorized_keys` → Test connection ✓.
 - [ ] The host-key fingerprint shown matches `ssh-keygen -lF login.informatik.uni-freiburg.de` from a trusted machine.
 - [ ] Test connection *before* adding the key gives the "Key not authorized" message.
-- [ ] Share a PDF from another Android app (Files, browser, mail) → print to `tfppr1` → the paper comes out and matches the document.
+- [x] Share a PDF from another Android app (Files, browser, mail) → print to `tfppr1` → the paper comes out and matches the document.
+      *(2026-11-07, Android; printer not recorded.)*
 - [ ] Print from the desktop file picker.
 - [ ] Copies = 2 gives two copies.
 - [ ] Wrong printer name (simulate if possible) gives a readable error with stderr.
@@ -72,7 +76,7 @@ readable result.
       real server may offer other host-key or key-exchange algorithms than the test server; if Test
       connection fails with a protocol error, send the details text.
 - [ ] Android: share a PDF **from another app** and check that Pool Print opens its print sheet; also try
-      the in-app "Pick a PDF" picker.
+      the in-app "Pick a PDF" picker. *(Sharing works, 2026-11-07; the picker is still open.)*
 - [ ] Android: rotate the phone on the print sheet; the document stays.
 - [ ] macOS: first launch creates a Keychain item "Pool Print"; no prompt on later launches.
 - [ ] macOS: "Pick a PDF" opens the native file dialog and prints the chosen file.
@@ -197,10 +201,11 @@ sets as presets, and see and cancel your own jobs.
 
 ### Manual test checklist
 
-- [ ] Password key install: fresh install → key step → "Add it for me with my pool password" → trust the server
+- [x] Password key install: fresh install → key step → "Add it for me with my pool password" → trust the server
       (check the fingerprint) → type the password → Add key → Test connection ✓ with the key. `~/.ssh/authorized_keys`
       has one new line, `ls -ld ~/.ssh` is `drwx------`. Note whether the server used `password` or
       `keyboard-interactive` and whether it asked for anything besides the password.
+      *(Works on Android, 2026-11-07. Not recorded: the `authorized_keys` and `~/.ssh` checks, and which auth method.)*
 - [ ] Password key install with a wrong password: "didn't accept the password", the field is empty, and nothing was
       added. After the app restarts, nothing asks for the password again.
 - [ ] Add a device: on a second device (e.g. the phone) copy its key from onboarding, paste it in Settings → Add a
@@ -254,4 +259,6 @@ notes and a clear "vibe-coded, provided as is" notice. The phases, owner/agent s
   SHA-256 and its version, mounts the DMG and checks the bundle (identifier, arm64, signature, version), and writes
   `build/release/<version>/` with stable file names, `SHA256SUMS.txt` and a `release-notes.md` draft from
   `scripts/release-notes.template.md`; `make release-draft` creates a draft (pre-)release with `gh`, targeted at the
-  built commit. Manual: 👤 run both on the Mac with the release key (Phase 5).
+  built commit.
+- ✅ Phase 5 — release candidate (2026-11-07): `v1.0.0-rc.1` published as a pre-release on
+  `b80b3b6`, with the APK, DMG, notices and `SHA256SUMS.txt`. Next: 👤 Phase 6, test the downloaded files.

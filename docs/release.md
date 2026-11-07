@@ -45,7 +45,7 @@ Facts from the repo that shape this plan:
 | [2](#phase-2--one-version-number) | ✅ One version source for both apps; show the version in Settings | 🤖 |
 | [3](#phase-3--repository-ready-to-go-public) | 🟨 Secret scan, licence, third-party notices, README install guide (🤖 done, 👤 review pending) | 🤖 prepare · 👤 approve |
 | [4](#phase-4--release-script) | ✅ `make release`: tests, signed APK, DMG, checks, checksums, notes draft | 🤖 |
-| [5](#phase-5--release-candidate) | Build `v1.0.0-rc.1`, put it on a draft/pre-release | 👤🤖 |
+| [5](#phase-5--release-candidate) | ✅ Build `v1.0.0-rc.1`, put it on a draft/pre-release | 👤🤖 |
 | [6](#phase-6--test-the-candidate-release-gate) | Install the downloaded RC on real devices; run the release gate | 👤 |
 | [7](#phase-7--publish-v100) | Tag and publish `v1.0.0` | 👤🤖 |
 | [8](#phase-8--after-the-release) | Verify, update docs, patch-release routine | 👤🤖 |
@@ -411,21 +411,27 @@ key, and `make release-draft` against GitHub (👤 Phase 5).
 
 ## Phase 5 — Release candidate
 
-- [ ] 🤖 Version is `1.0.0-rc.1` / `versionCode 2` (Phase 2); notes and README are current; commit on `main`
+- [x] 🤖 Version is `1.0.0-rc.1` / `versionCode 2` (Phase 2); notes and README are current; commit on `main`
       (or a `release/1.0.0` branch you merge).
-- [ ] 👤 Run on your Mac:
+- [x] 👤 Run on your Mac:
       ```bash
       make release
       ```
-- [ ] 👤 Read `build/release/1.0.0-rc.1/release-notes.md`, edit it, then:
+- [x] 👤 Read `build/release/1.0.0-rc.1/release-notes.md`, edit it, then:
       ```bash
       make release-draft
       ```
-- [ ] 👤 On GitHub, open the draft, check the files and the text, tick **Set as a pre-release**, and **Publish**.
+- [x] 👤 On GitHub, open the draft, check the files and the text, tick **Set as a pre-release**, and **Publish**.
       Publishing creates the tag `v1.0.0-rc.1` on the commit you built. (If you prefer to keep the RC private, leave it
       as a draft and download the files while logged in to GitHub.)
 
 **Done when:** `v1.0.0-rc.1` exists as a pre-release with both binaries and `SHA256SUMS.txt`.
+
+✅ **Done 2026-11-07.** [`v1.0.0-rc.1`](https://github.com/yahyafati/PoolPrint/releases/tag/v1.0.0-rc.1) is a
+published pre-release, tagged on `b80b3b6`, the commit the files were built from. It has the APK, the DMG,
+`THIRD_PARTY_NOTICES.md` and `SHA256SUMS.txt`; GitHub's SHA-256 for each binary matches `SHA256SUMS.txt`. The notes
+are the edited ones (What's new as a feature list; Known limitations from the roadmap and the owner's Android test).
+The repository is still **private**, so only collaborators can see the release until the Phase 3 visibility switch.
 
 ---
 
