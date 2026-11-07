@@ -276,3 +276,5 @@ notes and a clear "vibe-coded, provided as is" notice. The phases, owner/agent s
 - ✅ Phase 6 — release gate (2026-11-07): the downloaded `v1.0.0-rc.1` and `rc.2` install like a user's copy, every
   blocking check passes, and rc.2 installs over rc.1. Ticked in the M1–M4 checklists above; what's still open there
   goes into the 1.0.0 known limitations. Next: 🤖 Phase 7, prepare `1.0.0`.
+- 🟨 Phase 7 — publish v1.0.0: 🤖 prepared 2026-11-07 (version `1.0.0` / `versionCode 4`, README status, notes with
+  the known limitations). Waiting for 👤 `make release`, `make release-draft` and publishing.

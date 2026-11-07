@@ -47,7 +47,7 @@ Facts from the repo that shape this plan:
 | [4](#phase-4--release-script) | ✅ `make release`: tests, signed APK, DMG, checks, checksums, notes draft | 🤖 |
 | [5](#phase-5--release-candidate) | ✅ Build `v1.0.0-rc.1`, put it on a draft/pre-release | 👤🤖 |
 | [6](#phase-6--test-the-candidate-release-gate) | ✅ Install the downloaded RC on real devices; run the release gate | 👤 |
-| [7](#phase-7--publish-v100) | Tag and publish `v1.0.0` | 👤🤖 |
+| [7](#phase-7--publish-v100) | 🟨 Tag and publish `v1.0.0` (🤖 prepared, 👤 build and publish pending) | 👤🤖 |
 | [8](#phase-8--after-the-release) | Verify, update docs, patch-release routine | 👤🤖 |
 | [9](#phase-9-optional--automate-with-github-actions) | *(optional)* Build releases in GitHub Actions | 🤖 workflow · 👤 secrets |
 
@@ -493,8 +493,12 @@ question 1 stay open). Every non-blocking check still open in the roadmap goes i
 
 ## Phase 7 — Publish v1.0.0
 
-- [ ] 🤖 Set `poolprint.versionName=1.0.0` and bump `versionCode`; finalise the notes (changes, known limitations,
+- [x] 🤖 Set `poolprint.versionName=1.0.0` and bump `versionCode`; finalise the notes (changes, known limitations,
       certificate fingerprint); update the README status. Commit.
+      *(2026-11-07: `1.0.0` / `versionCode 4`; README status and the notices' version line updated. The notes are
+      pre-written in `build/release/1.0.0/release-notes.md`, which `make release` keeps: known limitations are every
+      non-blocking roadmap check still open after Phase 6. 👤 Review them and delete their `<!-- Edit:` line before
+      `make release-draft`.)*
 - [ ] 👤 Build and draft:
       ```bash
       make release

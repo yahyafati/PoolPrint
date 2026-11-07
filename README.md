@@ -8,9 +8,9 @@
 Print PDFs on the **Uni Freiburg TF computer-pool printers** from your Android phone or Mac in a few
 taps, without opening a terminal.
 
-> **Status: preparing the first release (1.0.0).** All planned features (milestones 1–4) are built and
-> unit-tested. Parts of them have not been checked against the real pool server yet; each release's notes list
-> what is known not to work or not yet verified. Progress: [docs/roadmap.md](docs/roadmap.md).
+> **Status: 1.0.0, the first release.** All planned features (milestones 1–4) are built and unit-tested. Setup and
+> everyday printing are checked against the real pool server on Android and macOS; some options and screens are
+> not yet. Each release's notes list them under *Known limitations*. Progress: [docs/roadmap.md](docs/roadmap.md).
 
 ## Download
 
