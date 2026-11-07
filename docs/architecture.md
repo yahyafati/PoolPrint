@@ -15,11 +15,11 @@
 
 ```mermaid
 flowchart LR
-    subgraph Device["Android phone / Mac"]
+    subgraph Device["Android phone / Mac / Windows PC"]
         IN["PDF in<br/>(share intent, picker,<br/>drag & drop, Open With)"] --> UI["Compose UI<br/>(commonMain)"]
         UI --> CORE["Core<br/>models · validation ·<br/>command builder · cost"]
         CORE --> SSH["SshClient<br/>(jvmCommonMain impl)"]
-        KEYS["Key store<br/>Android Keystore / macOS Keychain"] --> SSH
+        KEYS["Key store<br/>Android Keystore / macOS Keychain /<br/>Windows Credential Manager"] --> SSH
         HK["Host-key store<br/>(TOFU pin)"] --> SSH
     end
     SSH -- "SSH exec channel<br/>stdin = PDF bytes" --> LOGIN["login.informatik.uni-freiburg.de<br/>lpr / lpq / lprm / lpoptions"]
@@ -45,7 +45,7 @@ commonMain            pure Kotlin + Compose: models, validation, command builder
    └── jvmCommonMain  NEW intermediate source set shared by Android and desktop JVM:
          │            real SshClient (SSH library), Ed25519 key generation, PDF byte streaming
          ├── androidMain   Android Keystore encryption, PdfRenderer page count, content-URI reading
-         └── jvmMain       macOS Keychain / ~/.ssh key import, PDFBox page count, file reading
+         └── jvmMain       macOS Keychain / Windows Credential Manager / ~/.ssh key import, PDFBox page count, file reading
 commonTest            unit tests for everything in commonMain + FakeSshClient
 jvmCommonTest         (optional) tests for the real SshClient against an in-process SSH server
 jvmTest / androidHostTest   platform-specific tests
@@ -167,26 +167,66 @@ sealed interface SshError {
 - Private key: encrypted with an AES-GCM key that lives in Android Keystore. See [security.md](security.md).
 - Network: `INTERNET` permission only.
 
-### macOS desktop (`:desktopApp` + `jvmMain`)
+### Desktop OS switch (`jvmMain`, W1)
 
-- File picker: AWT `FileDialog`, which looks native on macOS, filtered to `.pdf`.
+- `DesktopOs` (`jvmMain/desktop`) is detected from `os.name` (`MacOs`, `Windows`; anything else throws
+  `UnsupportedOsException`, which `main()` prints before exiting, D-25). Platform facts reach the code as
+  parameters, never through `commonMain`: `commonMain` has no OS-specific strings or shortcuts.
+- `jvmMain/app/DesktopAppDependencies.kt` picks per OS: data folder (`~/Library/Application Support/Pool Print` /
+  `%LOCALAPPDATA%\Pool Print`, D-27), key store (`MacKeychainPrivateKeyStore` / `WindowsCredentialPrivateKeyStore`,
+  D-04 / D-26) and the host-name fallback for the key comment (`mac` / `pc`). The selection functions take the OS,
+  home folder and environment as arguments, so they are unit-tested on any OS.
+- `PoolPrintMenuBar(os, …)` uses ⌘ (meta) on macOS and Ctrl on Windows.
+
+### Desktop file hand-over (`jvmMain/desktop`, W2)
+
+- `main(args)` calls `startDesktop(os, args, incoming)` before any window, DataStore or key store exists. Files named on
+  the command line go to `IncomingPdfs.offer` (every OS; macOS gets none, its Open With arrives as an event). On
+  **Windows only** (D-28) it also enforces one running instance:
+  - `SingleInstance.tryAcquire(dataDir)` takes an exclusive `FileChannel` lock on `instance.lock` (`DesktopStartup.kt`).
+    The first instance then runs `HandOverListener` (`HandOver.kt`): a loopback-only `ServerSocket`, one bounded
+    connection at a time, and publishes port + token in `instance.handover` (`HandOverEndpoint`).
+  - A later instance gets no lock, so `HandOverClient` sends its first PDF path with the token (retrying for up to 5 s
+    while the first one starts) and `main` exits with `StartupResult.Exit` — it never reaches `application { … }`,
+    so nothing opens the DataStore, the Credential Manager or the network.
+  - The listener hands accepted paths to `IncomingPdfs`, so they take the same route as a drop. `main.kt` brings the
+    window to the front when a document arrives. Protocol and limits: [security.md](security.md#single-instance-and-file-hand-over-windows).
+  - macOS stays without this: LaunchServices already runs one process per app (D-28 scope).
+- Windows has no `setOpenFileHandler`; `installOpenFileHandler()` returns false there and the command line plus the
+  hand-over replace it.
+- Drag and drop needs no change for Explorer: it offers `DataFlavor.javaFileListFlavor` like Finder, which `filesIn`
+  reads (🔶 checked by hand on Windows).
+
+### Desktop: macOS and Windows (`:desktopApp` + `jvmMain`)
+
+One JVM app for both OSes; the OS-specific parts are the key store, data folder and file hand-over described above, the
+menu shortcuts, the packaging and the notes below. macOS items are marked as such, Windows items by their section.
+
+- File picker: AWT `FileDialog`, the native open panel on macOS (and on Windows). `FilenameFilter` is honoured on macOS
+  only; on Windows `dialog.file = "*.pdf"` is what filters the dialog (`pickerFilePattern`). The result is re-checked
+  with `isPdfFile` on both (`pickedPdf`), because a filter is only a hint.
 - Drag and drop onto the window: `PdfDropTarget` (Compose `dragAndDropTarget`, reads the AWT file list).
   It shows a hint while a file hovers and a short message when the drop holds no PDF.
-- "Open With": `java.awt.Desktop.setOpenFileHandler` and `CFBundleDocumentTypes` for `com.adobe.pdf`
+- macOS "Open With": `java.awt.Desktop.setOpenFileHandler` and `CFBundleDocumentTypes` for `com.adobe.pdf`
   (rank `Alternate`, so Preview stays the default) in the app's `Info.plist`, through
   `compose.desktop.application.nativeDistributions.macOS.infoPlist`. `main()` installs the handler before
   the window exists (macOS queues earlier open-file events until then).
-- `IncomingPdfs` (`jvmMain/desktop`) is the one inbox for dropped files, Open With and ⌘O. It keeps the
+- `IncomingPdfs` (`jvmMain/desktop`) is the one inbox for dropped files, Open With, the command line, hand-overs and ⌘O / Ctrl+O. It keeps the
   latest PDF (first PDF of several files) as a `StateFlow`; `main.kt` passes it to `App(incomingDocument = …)`.
   `App` drops a document that arrives while a job is uploading or waiting for host-key trust.
-- Menu bar: `PoolPrintMenuBar` (File → Open PDF… ⌘O, Print ⌘P). ⌘P goes through `AppCommands`
+- Menu bar: `PoolPrintMenuBar` (File → Open PDF… ⌘O / Ctrl+O, Print ⌘P / Ctrl+P). ⌘P goes through `AppCommands`
   (`commonMain/app`): the print sheet registers its `print` action while `canPrint` is true, the menu item
   is enabled exactly then.
 - Page count: Apache PDFBox (the allowed "PDF page-count library").
 - Private key: macOS Keychain through JNA and the Security framework, or a user-chosen existing key
   from `~/.ssh` (with its passphrase, if any, kept in the Keychain). See
-  [decisions.md](decisions.md#d-04-macos-keychain-access).
-- Packaging: `.dmg` through `packageDmg` (M4, D-18). Code signing and notarisation are out of scope unless requested.
+  [decisions.md](decisions.md#d-04-macos-keychain-access). On Windows: Credential Manager (D-26, above).
+- Packaging: `.dmg` through `packageDmg` on macOS (M4, D-18); a per-user `.msi` through `packageMsi` / `packageReleaseMsi`
+  on Windows (D-30; `desktopApp/build.gradle.kts`, fixed `upgradeUuid`, `PoolPrint.ico`). jpackage only builds the
+  format of the OS it runs on, so the Msi cannot be built on macOS: `.github/workflows/windows.yml` (pushes to `main`, PRs, manual; D-31, D-32) runs
+  the JVM tests and `packageReleaseMsi` on `windows-latest` and uploads the unsigned Msi, which `scripts/release.sh build
+  --windows-msi` then adds to a release made on the Mac (tagged releases built by `release.yml` build their own Msi, D-32) (checks, `PoolPrint-<version>-windows-x64.msi`, `SHA256SUMS.txt`;
+  [release.md](release.md#windows-the-msi-d-25d-31)). No PDF file association on Windows (D-30); unsigned (D-29). Code signing and notarisation are out of scope unless requested.
 
 ## State and persistence
 

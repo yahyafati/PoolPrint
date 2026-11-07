@@ -1,5 +1,6 @@
 package com.yahyafati.poolprint.transport
 
+import com.yahyafati.poolprint.transport.testserver.PosixShell
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.PosixFilePermissions
@@ -16,16 +17,19 @@ class FakeLpr(val dir: Path = Files.createTempDirectory("fake-lpr")) {
             script,
             """
             #!/bin/sh
-            printf '%s\n' "${'$'}@" > '$argsFile'
-            cat > '$inputFile'
-            if [ "${'$'}(cat '$modeFile' 2>/dev/null)" = "unknown-printer" ]; then
+            printf '%s\n' "${'$'}@" > '${PosixShell.path(argsFile)}'
+            cat > '${PosixShell.path(inputFile)}'
+            if [ "${'$'}(cat '${PosixShell.path(modeFile)}' 2>/dev/null)" = "unknown-printer" ]; then
               echo "lpr: The printer or class does not exist." >&2
               exit 1
             fi
             echo "request id is tfppr1-7 (1 file(s))"
             """.trimIndent() + "\n",
         )
-        Files.setPosixFilePermissions(script, PosixFilePermissions.fromString("rwxr-xr-x"))
+        // On Windows there are no POSIX permissions; Git for Windows' sh treats a file starting with #! as executable.
+        if ("posix" in script.fileSystem.supportedFileAttributeViews()) {
+            Files.setPosixFilePermissions(script, PosixFilePermissions.fromString("rwxr-xr-x"))
+        }
     }
 
     fun failWithUnknownPrinter() = Files.writeString(modeFile, "unknown-printer")

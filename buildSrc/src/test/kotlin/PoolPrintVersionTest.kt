@@ -18,6 +18,39 @@ class PoolPrintVersionTest {
     }
 
     @Test
+    fun `windows package version strips the release candidate suffix`() {
+        assertEquals("1.0.0", PoolPrintVersion.parse("1.0.0-rc.2", "2").windowsPackageVersion)
+        assertEquals("1.2.3", PoolPrintVersion.parse("1.2.3-rc.12", "9").windowsPackageVersion)
+    }
+
+    @Test
+    fun `windows package version of a final release is the name itself`() {
+        assertEquals("1.0.0", PoolPrintVersion.parse("1.0.0", "4").windowsPackageVersion)
+        assertEquals("10.20.30", PoolPrintVersion.parse("10.20.30", "4").windowsPackageVersion)
+    }
+
+    @Test
+    fun `release candidates and the final release share one windows package version`() {
+        val versions = listOf("1.0.0-rc.1", "1.0.0-rc.2", "1.0.0").map { PoolPrintVersion.parse(it, "2").windowsPackageVersion }
+        assertEquals(setOf("1.0.0"), versions.toSet())
+    }
+
+    @Test
+    fun `windows package version accepts the largest msi values`() {
+        assertEquals("255.255.65535", PoolPrintVersion.parse("255.255.65535", "2").windowsPackageVersion)
+        assertEquals("255.255.65535", PoolPrintVersion.parse("255.255.65535-rc.1", "2").windowsPackageVersion)
+    }
+
+    @Test
+    fun `windows package version rejects values an msi would not accept`() {
+        listOf("256.0.0", "1.256.0", "1.0.65536", "1.0.99999999999999999999", "99999999999.0.0").forEach { name ->
+            val e = assertFailsWith<IllegalArgumentException>(name) { PoolPrintVersion.parse(name, "2").windowsPackageVersion }
+            assertTrue(e.message!!.contains(name), name)
+            assertTrue(e.message!!.contains(PoolPrintVersion.NAME_PROPERTY), name)
+        }
+    }
+
+    @Test
     fun `keeps the full name and the code`() {
         val v = PoolPrintVersion.parse(" 1.0.0-rc.1 ", " 2 ")
         assertEquals("1.0.0-rc.1", v.name)

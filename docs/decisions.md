@@ -11,7 +11,7 @@ When a decision changes, update the entry and add a dated note. Don't delete his
 
 | ID | Decision |
 |---|---|
-| A-01 | Kotlin Multiplatform + Compose Multiplatform; targets Android and macOS desktop (JVM). No web, no iOS for now. |
+| A-01 | Kotlin Multiplatform + Compose Multiplatform; targets Android and macOS desktop (JVM). No web, no iOS for now. *Amended 2026-11-07 (owner):* Windows x64 desktop (JVM) is a third target; see D-25. |
 | A-02 | No backend, cloud or telemetry. The device talks directly to `login.informatik.uni-freiburg.de` over SSH. |
 | A-03 | SSH key auth only (Ed25519, generated on the device). The pool password is never stored. *Amended 2026-10-25 (owner):* onboarding may ask for it once, optionally, to install the device key; see D-20. Everything else stays key-only. |
 | A-04 | The PDF is streamed into `lpr`'s stdin over an exec channel. No remote file copies, no filenames in commands. |
@@ -131,7 +131,8 @@ Implementation notes (M1):
   non-secret state: username, last-used options, presets, discovery cache, pinned host keys.
 - **`kotlinx-serialization-json`** for structured values such as presets, the discovery cache and
   host-key pins.
-- Files go in app-private storage: Android `filesDir`, macOS `~/Library/Application Support/Pool Print/`.
+- Files go in app-private storage: Android `filesDir`, macOS `~/Library/Application Support/Pool Print/`, Windows
+  `%LOCALAPPDATA%\Pool Print` (D-27).
 - Secrets (the private key, an optional `~/.ssh` key passphrase) **never** go in DataStore. They go in
   the platform secure store (see D-04 and [security.md](security.md#key-handling)).
 
@@ -289,6 +290,7 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
 **Status:** Accepted (2026-10-25).
 - **Dmg only.** The Msi and Deb targets are gone from `desktopApp/build.gradle.kts`: nothing here can build or test
   them, and the app's key storage is macOS-only anyway. Re-add them if a Windows or Linux build is ever wanted.
+  *Amended 2026-11-07:* the Windows port re-adds `Msi` next to `Dmg` (D-25, D-30); Deb stays out.
 - **Name and version:** `packageName = "Pool Print"` (so the bundle is `Pool Print.app`), version `1.0.0`
   (macOS needs a major version of at least 1), bundle id unchanged. The icon is a printer slot and the sheet
   coming out of it, ink (`#141F00`) on lime (`#C8F244`), from the Claude Design sheet. `desktopApp/icons/make_icon.py`
@@ -439,6 +441,172 @@ are skipped, and text with no header, status or rows is treated as unexpected ou
   dependency register). Update them by SHA, never by moving tag.
 - **Intel:** still none (D-22, 0.5); an Intel DMG would be a second macOS job on an Intel runner.
 
+## D-25 Windows x64 desktop as a third target (Windows port)
+
+**Status:** Accepted (owner, 2026-11-07). Amends A-01 and D-18; the work is tracked in
+the "W — Windows desktop port" milestone in [roadmap.md](roadmap.md#w--windows-desktop-port) (phases W0–W4).
+- **Targets** are now Android, macOS desktop (arm64) and **Windows x64 desktop**, all on the JVM. The shared core
+  still stays free of platform code (A-07); everything Windows-specific lives in `jvmMain` (key store, data folder,
+  OS detection) and in `desktopApp` (packaging).
+- **Out of scope:** Linux, Windows on ARM, the Microsoft Store and auto-update. An unsupported OS fails clearly at
+  startup (W1) instead of half-working.
+- **No new hard-constraint exceptions:** key-only auth, no backend, no telemetry, no secret prompts in regular use
+  (A-11) and the command rules apply on Windows unchanged.
+- **D-18** ("Dmg only") is amended: `Msi` is added for Windows (D-30); Deb is still out.
+
+## D-26 Windows key storage: Credential Manager
+
+**Status:** Accepted (owner, 2026-11-07). The Windows counterpart of D-04.
+- **What:** the private key lives in **Windows Credential Manager** as a generic credential, written, read and
+  deleted with `CredWriteW` / `CredReadW` / `CredDeleteW` (`CRED_TYPE_GENERIC`) through JNA, behind a
+  `PrivateKeyStore` implementation in `jvmMain` (W1). `CRED_PERSIST_LOCAL_MACHINE`, so the credential stays on this
+  PC and does not roam with a domain profile. Target name `Pool Print`-based, mirroring the Keychain item (D-04):
+  the key belongs to the device, not to a username.
+- **Why:** it is the closest analogue of the Keychain item. It is bound to the Windows user, opens without a prompt
+  (A-11), and the user can see and delete it under Control Panel → Credential Manager. The blob limit is 2560 bytes;
+  the OpenSSH Ed25519 private key is about 400.
+- **Rejected:** DPAPI (`CryptProtectData`, current-user scope) with the ciphertext in a file under the data folder.
+  Equally prompt-free and user-bound, but it adds a file whose lifecycle the app has to manage, and the user has no
+  place to see or remove it.
+- **Same rules as the Keychain store:** `load` returns `null` when nothing is stored, `save` overwrites, `delete` is
+  idempotent, buffers are zeroed after use, and the secret never touches a command line or a log. The round-trip
+  test touches the real store, so it is off by default (`POOLPRINT_WINCRED_TEST=1`) and skipped on other OSes.
+- **Dependency:** `jna-platform` (same version as `jna`) for the `Advapi32` bindings; registered below, added to the
+  version catalog in W1.
+- **W1 finding (2026-11-07):** `jna-platform` 5.19.1 has no Credential Manager bindings (its `Advapi32` has no
+  `CredReadW`/`CredWriteW`/`CredDeleteW`, and there is no `Wincred` class). `WindowsCredentialPrivateKeyStore` therefore declares
+  those three functions, `CredFree` and the `CREDENTIALW` structure itself (`jvmMain/keys`) and uses `jna-platform` only for
+  `FILETIME`, `WinError.ERROR_NOT_FOUND` and `Kernel32Util.formatMessage`. The credential is keyed by target name `Pool Print`
+  (what Control Panel lists); the account string `ssh-ed25519-private-key@…` is stored as its user name. A key over the
+  2560-byte blob limit is refused with `CredentialTooLargeException`. The structure layout (80 bytes on x64) is unit-tested
+  on macOS; the real calls are only exercised by the gated test on Windows.
+- **Not verified here:** nothing in this environment runs Windows. Behaviour in the packaged app (credential
+  survives an Msi upgrade, uninstall leaves it, deleting it in Control Panel makes the app generate a new key) is on
+  the Windows manual checklist.
+
+## D-27 Windows data folder: `%LOCALAPPDATA%\Pool Print`
+
+**Status:** Accepted (owner, 2026-11-07). The Windows counterpart of the macOS folder in D-03.
+- **Where:** `%LOCALAPPDATA%\Pool Print` (non-roaming). It holds the DataStore file (settings, presets, discovery
+  cache, pinned host keys) and the single-instance files (D-28).
+- **Why not `%APPDATA%`:** that folder roams with a domain or enterprise profile. The settings and the pinned host
+  keys would follow the user to another PC, while the private key (D-26, `CRED_PERSIST_LOCAL_MACHINE`) would not:
+  the second PC would have a username and a pin but no key. Keeping everything non-roaming means a PC either has the
+  full set or none of it.
+- **Uninstall:** whether the Msi removes this folder and the credential, or leaves them for a reinstall, is decided
+  with the Msi (W3) and noted on the checklist.
+
+## D-28 Windows single instance and file hand-over
+
+**Status:** Accepted (owner, 2026-11-07). Protocol in [security.md](security.md#single-instance-and-file-hand-over-windows).
+- **Problem:** Explorer's "Open with" starts a *new process* for every file, and Windows has no equivalent of the
+  macOS open-file event. Two processes on one DataStore file can corrupt it, so a second instance must hand its file
+  to the first and exit without ever opening the store.
+- **Decision:** an exclusive `FileChannel` lock on `%LOCALAPPDATA%\Pool Print\instance.lock` decides who is the
+  running instance. The running instance listens on a loopback-only port and writes the port plus a random token to a
+  file only the user can read. A second instance reads it, sends the file path with the token, and exits. Only a
+  path is accepted; it goes through `isPdfFile` and then the normal print sheet, so the user still presses Print.
+- **Rejected:** a named pipe or a Windows message hook (more JNA, harder to test), and allowing several instances
+  (store corruption).
+- **Scope:** Windows only. macOS already has one process per app and delivers files through the open-file handler.
+- **Implemented in W2 (2026-11-07):** `HandOver.kt` / `DesktopStartup.kt`, no new library. A second launch that carries no PDF exits
+  quietly (the protocol has no "focus" message, by design); if the first instance can't be reached within 5 s the second exits
+  with status 1 and a stderr message, still without opening the store.
+
+## D-29 Windows code signing: unsigned for now
+
+**Status:** Accepted (owner, 2026-11-07). The Windows counterpart of the macOS ad-hoc decision in D-22.
+- The Msi is **not Authenticode-signed**. SmartScreen shows "Windows protected your PC"; the user clicks *More info*
+  → *Run anyway*. The release notes say so, with the steps (W4: `scripts/release-notes.template.md`).
+- **Why:** a personal, sideloaded app (D-22) doesn't justify a certificate. Azure Trusted Signing (monthly fee) and
+  an OV certificate (yearly cost, and SmartScreen reputation still has to build up) were considered. Revisit if
+  users complain.
+- Because the Msi is unsigned, its integrity rests on `SHA256SUMS.txt` and the GitHub release, as for the DMG.
+
+## D-30 Windows installer: Msi, per-user, fixed upgrade UUID
+
+**Status:** Accepted (owner, 2026-11-07).
+- **Format:** `TargetFormat.Msi` (jpackage), **per-user install**: no administrator prompt, installs under the user's
+  profile. A fixed `upgradeUuid` (generated once, never changed) lets a newer Msi replace an older one in place.
+- **Rejected:** an Exe installer (no in-place upgrade story as simple as Msi's) and a machine-wide install (needs
+  admin, which a student's lab or shared PC may not grant).
+- **Version:** Msi needs a numeric `MAJOR.MINOR.BUILD`; the `-rc.N` suffix is dropped as for macOS (D-23, W3; see the W3 details below).
+- File association and the icon are W3 details; the association must only add Pool Print to "Open with", not take
+  over as the default PDF app (as `LSHandlerRank` = `Alternate` on macOS, D-18).
+- **W3 details (2026-11-07):**
+  - **`upgradeUuid` = `fdbbb4df-e57b-487c-af3b-a52341470e7f`**, hard-coded in `desktopApp/build.gradle.kts`.
+    **Never change it:** a different UUID makes Windows treat the next Msi as another product, and the old install
+    would no longer be replaced. The rest: `perUserInstall = true`, desktop shortcut, Start-menu group `Pool Print`,
+    icon `desktopApp/icons/PoolPrint.ico` (16–256 px, from the same glyph as the other icons), `packageName`
+    `Pool Print`, `modules(...)` shared with macOS, ProGuard off as on macOS.
+  - **Msi version** = `windowsPackageVersion` in `PoolPrintVersion` (`buildSrc`): `MAJOR.MINOR.PATCH` without `-rc.N`,
+    MAJOR/MINOR ≤ 255, PATCH ≤ 65535, otherwise the build fails with the property name. **Consequence:**
+    `1.0.0-rc.1`, `1.0.0-rc.2` and `1.0.0` are all Msi `1.0.0`. Windows Installer ignores the suffix and a
+    major upgrade needs a *higher* version, so those builds are not upgrades of each other: uninstall the old one
+    first (the settings and the credential survive, see below). Only a real version bump (`1.0.1`, `1.1.0`) upgrades
+    in place. Whether jpackage's Msi refuses, repairs or double-installs on an equal version is not verified
+    (no Windows here; on the checklist).
+  - **No PDF file association in the Msi.** The Compose DSL has `windows { fileAssociation("application/pdf", "pdf",
+    …) }`, which hands jpackage a `--file-associations` file with only mime type, extension, description and icon.
+    jpackage then registers the extension with a ProgId of its own, and there is no equivalent of macOS's
+    `LSHandlerRank` = `Alternate` in it, so it could take `.pdf` away from the user's viewer (and touch it again on
+    uninstall). The JDK's Windows jpackage classes are not in the macOS JDK here, so this could not be read or tried;
+    the downside (a changed default PDF viewer) is worse than the gain, so the association is **dropped**. The ways in on Windows are Explorer's
+    **Open with → Choose another app → Pool Print** (pick `Pool Print.exe`, without "Always" unless wanted), drag and
+    drop onto the window, and Ctrl+O. (W2's command-line and hand-over code works for any of them.) Revisit only with a Windows PC to inspect
+    the registry result.
+  - **Uninstall:** the Msi removes only what it installed (the app files in the per-user install folder, which jpackage puts under
+    `%LOCALAPPDATA%` (probably `%LOCALAPPDATA%\Pool Print`, i.e. the same folder as the data; not verified, on the checklist,
+    and a reason to watch that the data file survives), and the shortcuts). The data files (D-27) and the Credential Manager
+    entry (D-26) are the app's own data, not part of the package, so they stay, as the macOS app leaves its Keychain item. Expected, not verified; checklist.
+  - **jlink modules:** unchanged (`java.instrument`, `java.naming`, `java.security.jgss`, `java.sql`,
+    `jdk.unsupported`). JNA brings its own `jnidispatch.dll` in the jar, and the Credential Manager, the loopback
+    sockets, the file lock and the owner-only ACL are all `java.base`/`java.desktop` (already in); `jdk.crypto.mscapi`
+    (the Windows certificate store provider) is not used. `suggestRuntimeModules` only runs for the build OS, so the
+    Windows run (and a union with the macOS list) is on the checklist.
+
+## D-31 Where Windows builds come from: GitHub Actions, manual trigger
+
+**Status:** Accepted (owner, 2026-11-07). Extends D-24 and D-22 (0.6).
+- jpackage cannot build a Windows installer on macOS. Windows builds come from a **GitHub Actions `windows-latest`
+  workflow started by hand (`workflow_dispatch`) only**, which runs the JVM tests and builds the Msi and uploads it
+  as a workflow **artifact**. It does not publish, tag or touch a release, and it needs no secrets (the Msi is
+  unsigned, D-29). Created in W4; the same pinning rules as the other workflows apply (D-24).
+- The owner downloads the Msi from the run and passes it to the release script (`--windows-msi`, W4), so a Windows
+  release still goes out through `make release` on the owner's Mac (D-22).
+- A local Windows PC or VM remains possible for manual testing. Agents still never push, tag or publish.
+- **W4 details (2026-11-07):** `.github/workflows/windows.yml` (`windows-latest`, Zulu 21, the same SHA-pinned actions as
+  the other workflows, `contents: read`, no secrets) runs `:shared:jvmTest`, builds `:desktopApp:packageReleaseMsi`, checks
+  the file (one `.msi`, ≥ 10 MB, OLE/CFB header), writes commit/size/SHA-256 to the run summary, prints
+  `suggestRuntimeModules` (not a gate) and uploads the Msi as the `msi` artifact for 14 days. `release.yml` stays Android +
+  macOS: a release with Windows goes through `make release WINDOWS_MSI=<file>` (`scripts/release.sh build --windows-msi`),
+  which checks the file, copies it as `PoolPrint-<version>-windows-x64.msi`, adds it to `SHA256SUMS.txt` and the notes, and
+  `make release-draft` attaches it. Without an Msi the release is Android + macOS only and says so. The release gate for
+  Windows is the owner's install on a Windows PC (release.md, "The Windows gate"); what the script can't see (that the Msi
+  installs, or that it was built from the release commit) stays on the checklist.
+- **Not verified here:** nothing in this environment can run the workflow or the Msi; both are on the manual
+  checklist.
+- **Amended by D-32 (2026-11-07):** the workflow also runs on pushes to `main` and on pull requests, and `release.yml`
+  builds the Msi for tagged releases.
+
+---
+
+## D-32 Windows build in CI and in the release workflow
+
+**Status:** Accepted (owner, 2026-11-07). Amends D-31; extends D-24.
+- `.github/workflows/windows.yml` runs on **pushes to `main`, pull requests and by hand** (was `workflow_dispatch` only),
+  so a change that breaks the Windows tests or the Msi build shows on the PR. Same job as before: `:shared:jvmTest` on
+  `windows-latest`, `packageReleaseMsi`, file checks, `suggestRuntimeModules`, the Msi as an artifact. Still no secrets
+  (fork PRs run it) and no publishing; a newer push to the same PR cancels the older run.
+- `release.yml` gets a **windows** job (`windows-latest`, after `prepare`, no secrets, unsigned per D-29): `:shared:jvmTest`
+  on Windows, `packageReleaseMsi`, upload. The draft job waits for it and passes the Msi to `scripts/release.sh ci-package
+  <apk> <dmg> <msi>`, which runs the same `check_msi` as `make release WINDOWS_MSI=…` (name, size, OLE/CFB header, version
+  in the name), copies it as `PoolPrint-<version>-windows-x64.msi` and lists it in `SHA256SUMS.txt`; `ci-draft` attaches
+  it. A tagged release built by the workflow therefore always includes Windows; a failed Windows job stops the draft.
+- `make release` on the Mac is unchanged: the Msi stays optional there (`WINDOWS_MSI=<file>` from a `windows.yml` run).
+- The Windows gate (release.md) is still the owner's install on a Windows PC before publishing the draft.
+- **Not verified here:** neither workflow has run on GitHub from this environment; the first PR/tag run shows it.
+
 ---
 
 ## Open questions
@@ -462,6 +630,13 @@ Questions for the owner that block or shape later work:
    on real devices, the fingerprint the app shows on first connect matches `ssh-keygen -lF
    login.informatik.uni-freiburg.de` from a trusted machine.
 
+6. **Windows port, unverified without a Windows PC** (2026-11-07, W1–W4; checklist in
+   [roadmap.md](roadmap.md#windows-manual-checklist-owner-on-windows)): the Credential Manager calls, the file lock and
+   hand-over between real processes, Explorer's Open With, the native dialog filter, whether `toFront()` is honoured, the Msi
+   itself (WiX download, per-user install, shortcuts, upgrade, equal-version behaviour, uninstall, install folder), the
+   `suggestRuntimeModules` list, and the Windows workflow (never run). Nothing about Windows is claimed to work until the
+   owner has run that checklist.
+
 Answered on 2026-10-25: off-campus access needs VPN (A-12); libraries are allowed as needed (A-10);
 persistence (D-03) and Keychain (D-04) were decided by the implementer; rename everything (D-08).
 
@@ -481,6 +656,7 @@ All non-template dependencies, planned or added. Update this table whenever `lib
 | `androidx.activity:activity-compose` (already in the template catalog) | `androidMain` | `OpenDocument` picker | Added (M1) |
 | JNA 5.19.1 | `jvmMain` | macOS Keychain access | Added (M1) |
 | Apache PDFBox `pdfbox` 3.0.8 | `jvmMain` | Page counting on desktop (D-02) | Added (M2) |
+| JNA Platform `jna-platform` (same version as JNA, 5.19.1) (D-26) | `jvmMain` | Windows helpers for the Credential Manager store: `WinBase.FILETIME`, `WinError`, `Kernel32Util.formatMessage`. It has **no** `CredRead`/`CredWrite` bindings, so those three calls are declared in the app (D-26 note) | Added (W1) |
 | Apache MINA SSHD `sshd-core` 2.20.0 (+ `bcpkix`, `slf4j-simple`) | `jvmTest` only | In-process SSH server for testing the real `SshClient`; also run standalone for the emulator | Added (M1) |
 | `kotlin-test` (Gradle's embedded Kotlin version) | `buildSrc` tests only | Tests for the version parsing (release Phase 2); not shipped | Added (R1) |
 | `actions/checkout` v7.0.1, `actions/setup-java` v6.2.0, `actions/upload-artifact` v7.0.2, `actions/download-artifact` v8.0.2 (pinned by SHA, D-24) | GitHub Actions only | CI and release workflows; not shipped | Added (R1, Phase 9) |

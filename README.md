@@ -32,6 +32,16 @@ check; to hear about new versions, use *Watch → Custom → Releases* on this r
    **Open Anyway** next to "Pool Print", and confirm. (macOS 14 and older: right-click the app → *Open*.)
 3. After an update, macOS may ask whether Pool Print may use its Keychain item: choose **Always Allow**.
 
+**Windows (10 or 11, 64-bit)** — only in releases that list a `.msi`
+1. Download `PoolPrint-<version>-windows-x64.msi` and double-click it.
+2. The installer is not signed, so SmartScreen says *Windows protected your PC*: click **More info → Run anyway**.
+3. It installs for your user only (no administrator password) with Start-menu and desktop shortcuts.
+4. Open a PDF with Ctrl+O, by dragging it onto the window, or right-click the PDF → *Open with → Choose another app →
+   Pool Print*. Your default PDF app stays as it is.
+5. Updating over a newer `MAJOR.MINOR.PATCH` works in place; going from a release candidate to the same final version
+   needs an uninstall first (Settings → Apps). Settings live in `%LOCALAPPDATA%\Pool Print`, the key in Credential
+   Manager (*Pool Print*); uninstalling leaves both.
+
 **Updating:** download the newer file and install over the old one. Your key and settings stay. Don't uninstall
 first on Android: that deletes the device key and you'd have to onboard again.
 

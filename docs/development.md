@@ -42,8 +42,11 @@ Rules for anyone working on this repo: human contributors and AI coding agents. 
 | Build-logic tests (version parsing) | `./gradlew :buildSrc:test` (`make test-build`; `make test-all` runs every suite) |
 | Release files (tests, release-key APK, DMG, checks, checksums, notes) | `make release` → `build/release/<version>/` ([release.md, Phase 4](release.md#how-the-release-script-works)) |
 | Draft GitHub release from those files | `make release-draft` (needs `gh`; publishing stays manual) |
+| Release with a Windows Msi built elsewhere | `make release WINDOWS_MSI=<file.msi>` (`scripts/release.sh build --windows-msi`; [release.md, Windows](release.md#windows-the-msi-d-25d-31)) |
+| Windows Msi | `.\gradlew.bat :desktopApp:packageReleaseMsi` / `make msi`, Windows only; from a Mac use `.github/workflows/windows.yml` (runs on pushes to `main` and PRs, or *Actions → Windows → Run workflow*; D-31, D-32) |
 | CI (GitHub Actions) | `.github/workflows/ci.yml`: every test suite on pushes to `main` and on PRs |
 | Release in GitHub Actions (optional) | push a tag `v<version>` → `.github/workflows/release.yml` makes a draft release ([release.md, Phase 9](release.md#phase-9-optional--automate-with-github-actions)) |
+| Windows Credential Manager test (touches the real store; Windows only) | `POOLPRINT_WINCRED_TEST=1 ./gradlew :shared:jvmTest --tests '*WindowsCredential*'` |
 | macOS Keychain test (touches the real login keychain) | `POOLPRINT_KEYCHAIN_TEST=1 ./gradlew :shared:jvmTest --tests '*MacKeychain*'` |
 
 **Release signing (Android).** `release` builds are signed with the release key when the four
@@ -67,7 +70,7 @@ Versions live in `gradle/libs.versions.toml`; reference them through `libs.*`.
 | Core logic | Command builder, quoting, validation, cost estimator, parsers | `commonTest` | `kotlin.test` |
 | Security | Injection payloads for every field; quoting round-trip through `/bin/sh` | `commonTest` and `jvmTest` | Parameterised tests |
 | Flows and view models | Onboarding, test connection, print, discovery fallback, queue/cancel | `commonTest` | `FakeSshClient` |
-| Real SSH implementation | Exec, stdin streaming, host-key callback, auth-method restrictions | `jvmTest` (or `jvmCommonTest`) | In-process SSH server (Apache MINA SSHD, test-only) |
+| Real SSH implementation | Exec, stdin streaming, host-key callback, auth-method restrictions | `jvmTest` (or `jvmCommonTest`) | In-process SSH server (Apache MINA SSHD, test-only; exec runs through a POSIX `sh`, on Windows Git for Windows' `sh.exe`, skipped without one) |
 | Platform | Keystore encryption, PdfRenderer, intents | `androidHostTest` / device tests | Robolectric if needed |
 | Real server | Everything remote | Manual | Roadmap checklists |
 

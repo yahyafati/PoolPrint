@@ -1,7 +1,8 @@
 # Release guide: sideloaded builds on GitHub
 
 How to ship Pool Print as a **GitHub Release** that people download and install themselves: an Android APK
-and a macOS `.dmg`, with checksums and release notes. No app store, no backend, no update server.
+and a macOS `.dmg` (plus, since the Windows port, an optional unsigned Windows `.msi`, see
+[Windows](#windows-the-msi-d-25d-31)), with checksums and release notes. No app store, no backend, no update server.
 
 Every release is presented honestly as what it is: a **vibe-coded** app (written largely by AI coding agents,
 not audited), shared **as is, without any warranty or guarantee**. That notice goes in the README, the release
@@ -215,7 +216,7 @@ was ever committed, and the only `poolprint.signing.*` lines are this guide's ex
 
 **How it's built.** `buildSrc/src/main/kotlin/PoolPrintVersion.kt` reads and checks both properties
 (`MAJOR.MINOR.PATCH` or `MAJOR.MINOR.PATCH-rc.N`, `MAJOR ≥ 1`, no leading zeros; `versionCode` a whole number from 1);
-anything else fails the build with the property name. `macPackageVersion` drops the `-rc.N`. Its tests are
+anything else fails the build with the property name. `macPackageVersion` and `windowsPackageVersion` (also range-checked for the Msi) drop the `-rc.N`. Its tests are
 `./gradlew :buildSrc:test`, part of `make test-all`. Android passes `BuildConfig.VERSION_NAME` into `App()`; the desktop
 build generates `BuildInfo.VERSION_NAME` (`:desktopApp:generateBuildInfo`), so the label is right under `run` and
 `hotRun` too. Settings → About shows "Pool Print <version>" with the vibe-coded line and the privacy line under it.
@@ -367,7 +368,7 @@ intended, on a debug-signed build).
 build `release` (they ignore `BUILD=`), take the version from `gradle.properties`, and stop at the first failed
 check with a message saying what to do.
 
-`make release`, in order:
+`make release [WINDOWS_MSI=<file>]` (`scripts/release.sh build [--windows-msi <file>]`), in order:
 
 1. **Checkout**: macOS on arm64 (D-22), `git status --porcelain` empty (untracked files count), tags fetched from
    `origin` (best effort, since GitHub creates the tag only on publish), and no tag `v<version>` yet.
@@ -383,7 +384,10 @@ check with a message saying what to do.
 6. Copies into `build/release/<version>/` (git-ignored): `PoolPrint-<version>-android.apk`,
    `PoolPrint-<version>-macos-arm64.dmg`, `THIRD_PARTY_NOTICES.md`, plus a hidden `.release-commit` with the commit
    the files were built from (not uploaded). The copied APK is checked again.
-7. `SHA256SUMS.txt` over the APK, the DMG and the notices (`shasum -a 256`).
+   With `--windows-msi <file>` the file is also copied as `PoolPrint-<version>-windows-x64.msi` and checked again (see
+   [Windows](#windows-the-msi-d-25d-31)); without it the release is Android + macOS only and the script says so in
+   step 1 and at the end.
+7. `SHA256SUMS.txt` over the APK, the DMG, the Msi (if any) and the notices (`shasum -a 256`).
 8. `release-notes.md` from [`scripts/release-notes.template.md`](../scripts/release-notes.template.md): version,
    file names, certificate SHA-256, a release-candidate line for `-rc.N`, and under *What's new* every non-merge
    commit since the last **final** release tag (RC tags are skipped, so `1.0.0` lists everything since the previous
@@ -397,7 +401,8 @@ check with a message saying what to do.
 - fetches from `origin` and refuses if the tag already exists, if a release `v<version>` (e.g. an earlier draft)
   already exists, or if the built commit isn't on any remote branch yet (push it first; the script never pushes);
 - runs `gh release create v<version> --draft [--prerelease] --target <built commit> --title "Pool Print <version>"
-  --notes-file release-notes.md` with the APK, DMG, notices and `SHA256SUMS.txt`. `--prerelease` is set for
+  --notes-file release-notes.md` with the APK, DMG, the Msi (when `make release` copied one; otherwise it warns that the
+  draft has no Windows download), notices and `SHA256SUMS.txt`. `--prerelease` is set for
   `-rc.N`. `--target` makes GitHub create the tag on the commit the files came from when you publish.
 
 **Checked 2026-11-07** (by the agent, without the release key in play): on the existing release-key APK and DMG the
@@ -477,14 +482,19 @@ From the [roadmap](roadmap.md) checklists, the ones a new user hits on day one:
 - [x] macOS: replace the app in Applications → note whether a Keychain prompt appears and whether *Always Allow*
       sticks (D-04, M4 checklist).
 
-### 6.4 Report
+### 6.4 Windows (only when the release includes an Msi)
+
+See the [Windows gate](#the-windows-gate) below. A release without an Msi skips it.
+
+### 6.5 Report
 
 Send the agent the results (ticked list, failures with the error *details* text, the real `lpstat`/`lpoptions`/`lpq`
 output if you captured it). 🤖 The agent ticks the roadmap checklists, records answers in `decisions.md` (D-06,
 D-07, open questions), fixes blocking bugs (→ another RC), and writes the **known limitations** for the notes:
 every non-blocking check that's still open.
 
-**Done when:** every blocking check passes on an RC built from the commit you're about to release.
+**Done when:** every blocking check passes on an RC built from the commit you're about to release (and, when the
+release ships an Msi, the [Windows gate](#the-windows-gate) too).
 
 ✅ **Done 2026-11-07** (owner): the downloaded rc.1 and rc.2 install as described, every blocking check passes, and
 rc.2 installs over rc.1 on Android with the device still onboarded. The roadmap's M1–M4 checklists are ticked or
@@ -521,7 +531,11 @@ The binaries in `1.0.0` must come from this build, not from an RC: the `versionC
 ### Release notes template
 
 The script fills [`scripts/release-notes.template.md`](../scripts/release-notes.template.md) (Phase 4); edit that
-file to change the notes of every release. Filled in for 1.0.0 it reads:
+file to change the notes of every release. Lines starting with `{{WIN}}` appear only when the release has a Windows Msi
+(a *Windows* row in the table, the **Windows install** steps with the SmartScreen "More info → Run anyway" warning, the
+Windows known limitation); `{{NOWIN}}` lines only when it has none ("This release has no Windows download"). If you add
+the Msi after a first run, delete `release-notes.md` and rerun so these lines are regenerated (the script warns when the
+kept notes don't match). Filled in for 1.0.0 (an Android + macOS release) it reads:
 
 ```markdown
 Pool Print 1.0.0. Print PDFs on the Uni Freiburg TF pool printers from Android or macOS.
@@ -588,6 +602,12 @@ For every later release (`1.0.1`, `1.1.0`, …):
      final release drops the suffix (`1.1.0-rc.2` → `1.1.0`, with a new `versionCode`).
    - macOS sees only `MAJOR.MINOR.PATCH`, so an RC and its final release share the `.dmg` version; the app's
      Settings → About shows the full name.
+   - **Windows Msi versions (D-30):** the Msi version is `windowsPackageVersion` (`MAJOR.MINOR.PATCH` without the
+     suffix; MAJOR/MINOR ≤ 255, PATCH ≤ 65535, else the build fails). An RC and its final release therefore share
+     one Msi version (`1.0.0-rc.2` and `1.0.0` are both `1.0.0`), and Windows Installer does not upgrade an Msi
+     with an equal version: **uninstall the old Msi first** when going from an RC to the final release (settings and
+     key survive an uninstall). Only a higher `MAJOR.MINOR.PATCH` upgrades in place. The Msi's `upgradeUuid` is fixed
+     forever (decisions.md, D-30).
 3. 👤 `make release` → `make release-draft` → review → Publish. Use an RC first when the change touches SSH,
    key storage, onboarding or command building (things only the real server can confirm).
 4. 👤 Smoke test the downloaded files (install over the previous version, print one page).
@@ -648,7 +668,14 @@ signing key. The Gradle cache comes from `actions/setup-java` (`cache: gradle`).
    `build/release/<version>/` like `make release` steps 6–8 (stable names, the APK checked again, notices,
    `SHA256SUMS.txt`, `release-notes.md` from the template with the commits since the last final release, skipping
    the tag being released), then `ci-draft` refuses if any release for the tag exists (drafts included) and runs
-   `gh release create v<version> --draft [--prerelease] --verify-tag` with the same four files as `make release-draft`.
+   `gh release create v<version> --draft [--prerelease] --verify-tag` with the same files as `make release-draft`.
+5. **windows** (`windows-latest`, after **prepare**, in parallel with android and macos; no secrets): `:shared:jvmTest` on
+   Windows, `:desktopApp:packageReleaseMsi`, uploads the Msi. The **release** job waits for it and passes it to
+   `ci-package <apk> <dmg> <msi>`, which runs `check_msi` (as `make release WINDOWS_MSI=…` does), copies it as
+   `PoolPrint-<version>-windows-x64.msi` and adds it to `SHA256SUMS.txt` and the notes; `ci-draft` attaches it (D-32).
+
+So a draft made by `release.yml` always includes the Windows Msi; a failing Windows job stops the draft. The
+[Windows gate](#the-windows-gate) still runs on a Windows PC before you publish.
 
 No Gradle cache is restored or saved in `release.yml`: a release build shouldn't depend on, or leave anything in, a
 cache that other workflow runs share.
@@ -704,6 +731,60 @@ workflows themselves, the keystore decoding, the environment approval and a draf
 
 ---
 
+## Windows: the Msi (D-25–D-31)
+
+The Windows desktop app ships as an **unsigned, per-user Msi** (D-29, D-30). jpackage builds only the installer of the OS
+it runs on, so the Msi cannot be built on your Mac. It is built on GitHub Actions: `.github/workflows/windows.yml` runs
+on pushes to `main`, on pull requests and by hand (D-31, D-32) and uploads the Msi as an artifact, and the tag-triggered
+`release.yml` builds its own Msi into the draft (see [How the workflows work](#how-the-workflows-work)). For `make release`
+on your Mac the Msi is handed to the release script and stays optional: without it that release is Android + macOS.
+
+**Getting the Msi into a release made with `make release`**
+
+| Step | Who |
+|---|---|
+| Bump the version in `gradle.properties`, tests green, commit and push to `main` (the commit the whole release is built from) | 🤖 prepares · 👤 pushes |
+| Take the `Windows` run of that commit on `main` (it runs on every push), or *Actions → Windows → Run workflow* on it. It runs `:shared:jvmTest` on Windows (the MINA SSHD tests unchanged), builds `:desktopApp:packageReleaseMsi`, checks the file (one `.msi`, size, Installer header), prints `suggestRuntimeModules`, and uploads the Msi as the `msi` artifact (kept 14 days). The run summary lists the commit, size and SHA-256. It publishes nothing and needs no secrets. | 👤 |
+| Download the artifact, unzip it (GitHub zips artifacts), keep the name `Pool Print-<MAJOR.MINOR.PATCH>.msi` | 👤 |
+| Install that Msi on a Windows PC and run the [Windows gate](#the-windows-gate) | 👤 |
+| `make release WINDOWS_MSI="path/to/Pool Print-1.0.1.msi"` (or `scripts/release.sh build --windows-msi <file>`), then `make release-draft` as usual | 👤 |
+| Keep the agent out of it: it can't run the workflow, install the Msi or see Windows; it only prepares scripts, docs and the version bump | 🤖 |
+
+**What the script checks about the Msi** (`check_msi`, also on its own as `scripts/release.sh check-msi <file>`, before
+the long build starts): the file exists, has an `.msi` name (a `.zip` artifact is refused), is at least 10 MiB (a
+real one carries the bundled runtime; this catches a stopped download or an error page), starts with the Windows
+Installer (OLE/CFB) header `D0 CF 11 E0 A1 B1 1A E1`, and its file name carries the same `MAJOR.MINOR.PATCH` as
+`gradle.properties` (so an Msi built from another version is refused; a name without a version only warns). It copies
+the file to `build/release/<version>/PoolPrint-<version>-windows-x64.msi`, checks the copy again, and puts it into
+`SHA256SUMS.txt`. **What it cannot check:** that the Msi installs, starts or contains this commit's code (nothing on a
+Mac can read it; the gate does), and its signature (there is none, D-29). It also can't tell which commit the workflow
+ran on, so the run summary's commit must equal the release commit; the script prints that commit when it starts.
+
+**Versions.** The Msi version is `windowsPackageVersion` (`MAJOR.MINOR.PATCH`, no `-rc.N`, see the
+[patch routine](#patch-release-routine)): an RC and its final release are the same Msi version and do not upgrade each
+other (uninstall first). The `upgradeUuid` in `desktopApp/build.gradle.kts` never changes (D-30).
+
+### The Windows gate
+
+👤 on a Windows 10/11 PC, with the **downloaded** Msi (as for the other files, the artifact or the release asset, not your
+build folder). Blocking for a release that includes the Msi; the complete list with the extra W1–W3 checks is the
+[Windows checklist in the roadmap](roadmap.md#windows-manual-checklist-owner-on-windows).
+
+- [ ] `Get-FileHash` of the downloaded Msi equals its line in `SHA256SUMS.txt`.
+- [ ] Install without administrator rights; SmartScreen shows "Windows protected your PC" and **More info → Run anyway**
+      works exactly as the release notes say; Start-menu entry and desktop shortcut appear; the app starts.
+- [ ] Onboarding with **copy the key** and with **"Add it for me with my pool password"** → Test connection ✓; restart →
+      print again → no password or passphrase prompt (the key is in Credential Manager).
+- [ ] Print via **Ctrl+O**, **drag and drop** and **Open with → Choose another app → Pool Print**; with the app closed and
+      open (no second window); the default PDF app is unchanged.
+- [ ] Page count and cost show in the installed app (PDFBox in the packaged runtime).
+- [ ] Updates: a newer `MAJOR.MINOR.PATCH` installed over the old one replaces it (one entry in Settings → Apps), settings and key
+      stay. For an RC → final release with the same Msi version: uninstall first, then install; note what happened.
+- [ ] Uninstall (Settings → Apps) removes the app and shortcuts without an admin prompt; `%LOCALAPPDATA%\Pool Print` data
+      and the Credential Manager entry stay (D-30).
+
+---
+
 ## Risks and things to keep an eye on
 
 - **Losing the release keystore** = no more updates for existing Android users without uninstall and re-onboarding.
@@ -713,6 +794,10 @@ workflows themselves, the keystore decoding, the environment approval and a draf
   check whether it applies to Germany yet and what it asks of a hobby developer (registration, package name, signing
   key). It would not change the APK, only add a registration step for you.
 - **Gatekeeper and Keychain on macOS** stay slightly awkward while the app is ad-hoc signed (0.4).
+- **SmartScreen on Windows** warns on every download of the unsigned Msi (D-29); the release notes tell users how to
+  continue. Revisit signing if people complain.
+- **A Windows Msi can't be verified from the Mac.** Its real gate is the install on Windows; the script only catches a
+  wrong or broken file.
 - **Untested remote behaviour.** Anything not on the blocking list goes into *known limitations*, plainly worded.
 - **Expectations.** The app is vibe-coded and shared as is. Keep the notice prominent and don't promise support,
   fixes or timelines anywhere (README, notes, issue replies).

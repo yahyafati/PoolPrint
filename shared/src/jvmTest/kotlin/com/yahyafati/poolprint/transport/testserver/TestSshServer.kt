@@ -13,10 +13,11 @@ import org.apache.sshd.server.auth.keyboard.InteractiveChallenge
 import org.apache.sshd.server.auth.keyboard.KeyboardInteractiveAuthenticator
 import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider
 import org.apache.sshd.server.session.ServerSession
-import org.apache.sshd.server.shell.ProcessShellCommandFactory
+import org.junit.Assume
 
 /**
- * Test-only in-process SSH server (Apache MINA SSHD). Runs exec requests through `sh -c` on the dev machine.
+ * Test-only in-process SSH server (Apache MINA SSHD). Runs exec requests through a POSIX `sh -c` ([PosixShell]; on Windows
+ * Git for Windows' `sh.exe`), like the real Linux server.
  * Records every authentication method a client attempts, so tests can prove password and
  * keyboard-interactive are never tried by regular commands, and are tried exactly once by the one-time
  * password key install. Synthetic; never talks to anything but loopback.
@@ -64,9 +65,9 @@ class TestSshServer(
                 keyboardInteractivePassword != null && responses == listOf(keyboardInteractivePassword)
         }
         commandFactory = org.apache.sshd.server.command.CommandFactory { channel, command ->
-            var prefixed = if (pathPrefix == null) command else "PATH='$pathPrefix':\"\$PATH\"; $command"
-            if (homeDir != null) prefixed = "HOME='$homeDir'; export HOME; $prefixed"
-            ProcessShellCommandFactory.INSTANCE.createCommand(channel, prefixed)
+            var prefixed = if (pathPrefix == null) command else "PATH='${PosixShell.path(pathPrefix)}':\"\$PATH\"; $command"
+            if (homeDir != null) prefixed = "HOME='${PosixShell.path(homeDir)}'; export HOME; $prefixed"
+            PosixShell.Factory(prefixed).createShell(channel)
         }
     }
 
@@ -84,6 +85,10 @@ class TestSshServer(
     val hostKeyFingerprint: String
         get() = KeyUtils.getFingerPrint(sshd.keyPairProvider.loadKeys(null).first { it.public.algorithm.contains("Ed", true) }.public)
 
-    fun start(): TestSshServer = apply { sshd.start() }
+    /** Starts the server; skips the calling test (JUnit assumption) when there is no POSIX `sh` (Windows without Git). */
+    fun start(): TestSshServer = apply {
+        Assume.assumeTrue("needs a POSIX sh (on Windows: Git for Windows)", PosixShell.executable != null)
+        sshd.start()
+    }
     override fun close() = sshd.stop(true)
 }

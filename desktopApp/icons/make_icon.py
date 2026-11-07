@@ -1,7 +1,7 @@
 """Draws the Pool Print app icon: a printer slot and the sheet coming out of it, ink on lime.
 
-Writes PoolPrint.png and PoolPrint.icns here (macOS only: needs iconutil) and the Android adaptive icon layers
-(androidApp/src/main/res/drawable/ic_launcher_*.xml), all from the glyph below.
+Writes PoolPrint.png and PoolPrint.icns here (macOS only: needs iconutil), PoolPrint.ico (Windows, 16-256 px) and
+the Android adaptive icon layers (androidApp/src/main/res/drawable/ic_launcher_*.xml), all from the glyph below.
 
 Run from this folder: python3 make_icon.py
 """
@@ -53,22 +53,23 @@ def write_android(res):
         f.write(vector.format(body=background))
 
 
-def draw_macos():
+def draw_icon(margin, radius, shadow):
+    """The tile on a 1024 canvas: `margin` px around the lime body, `radius` px corners, optional soft shadow."""
     # Drawn 4x and scaled down for anti-aliasing.
     k = 4
     S = 1024 * k
     img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
 
-    # macOS (Big Sur) grid: an 824 px body centred on the 1024 canvas, with a soft shadow under it.
-    m, radius = 100 * k, 185 * k
-    shadow = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    ImageDraw.Draw(shadow).rounded_rectangle((m, m + 12 * k, S - m, S - m + 12 * k), radius=radius, fill=(0, 0, 0, 70))
-    img.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(14 * k)))
+    m, radius = margin * k, radius * k
+    if shadow:
+        layer = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        ImageDraw.Draw(layer).rounded_rectangle((m, m + 12 * k, S - m, S - m + 12 * k), radius=radius, fill=(0, 0, 0, 70))
+        img.alpha_composite(layer.filter(ImageFilter.GaussianBlur(14 * k)))
     d = ImageDraw.Draw(img)
     d.rounded_rectangle((m, m, S - m, S - m), radius=radius, fill=LIME)
 
     # The 108dp glyph grid mapped onto the body: the slot spans about 44% of it.
-    unit = 824 * k * 0.44 / (SLOT[2] - SLOT[0])
+    unit = (S - 2 * m) * 0.44 / (SLOT[2] - SLOT[0])
 
     def box(r):
         return tuple(S / 2 + (v - 54) * unit for v in r)
@@ -80,6 +81,20 @@ def draw_macos():
     for rect in (SLOT, *LINES):
         d.rectangle(box(rect), fill=INK)
     return img.resize((1024, 1024), Image.LANCZOS)
+
+
+def draw_macos():
+    # macOS (Big Sur) grid: an 824 px body centred on the 1024 canvas, with a soft shadow under it.
+    return draw_icon(margin=100, radius=185, shadow=True)
+
+
+def write_windows(path):
+    # Windows has no tile grid or shadow: the body nearly fills the canvas. One PNG per size, each scaled from the
+    # 1024 px drawing, in a single .ico (PNG-compressed entries, supported since Windows Vista).
+    img = draw_icon(margin=32, radius=190, shadow=False)
+    sizes = [16, 24, 32, 48, 64, 128, 256]
+    frames = [img.resize((n, n), Image.LANCZOS) for n in sizes]
+    frames[-1].save(path, format="ICO", sizes=[(n, n) for n in sizes], append_images=frames[:-1])
 
 
 here = os.path.dirname(os.path.abspath(__file__))
@@ -95,3 +110,5 @@ with tempfile.TemporaryDirectory() as tmp:
         img.resize((size, size), Image.LANCZOS).save(os.path.join(iconset, f"icon_{size}x{size}.png"))
         img.resize((size * 2, size * 2), Image.LANCZOS).save(os.path.join(iconset, f"icon_{size}x{size}@2x.png"))
     subprocess.run(["iconutil", "-c", "icns", iconset, "-o", os.path.join(here, "PoolPrint.icns")], check=True)
+
+write_windows(os.path.join(here, "PoolPrint.ico"))

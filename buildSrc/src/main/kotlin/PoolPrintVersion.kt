@@ -14,7 +14,30 @@ data class PoolPrintVersion(val name: String, val code: Int) {
     /** The macOS package version: numbers only (D-18), so [name] without its `-rc.N` suffix. */
     val macPackageVersion: String get() = name.substringBefore('-')
 
+    /**
+     * The Windows Msi package version (D-30): `MAJOR.MINOR.BUILD` with MAJOR and MINOR at most 255 and BUILD
+     * (our PATCH) at most 65535, so [name] without its `-rc.N` suffix. Throws [IllegalArgumentException] when a
+     * part is out of range.
+     *
+     * Consequence: `1.0.0-rc.1`, `1.0.0-rc.2` and `1.0.0` all become Msi `1.0.0`. Windows Installer ignores
+     * the suffix, so those builds do not upgrade each other; see docs/release.md (Windows Msi versions).
+     */
+    val windowsPackageVersion: String
+        get() {
+            val (major, minor, build) = name.substringBefore('-').split('.').map { it.toLongOrNull() ?: Long.MAX_VALUE }
+            require(major <= MSI_MAX_MAJOR && minor <= MSI_MAX_MINOR && build <= MSI_MAX_BUILD) {
+                "$NAME_PROPERTY '$name' does not fit a Windows Msi version: MAJOR and MINOR must be at most " +
+                    "$MSI_MAX_MAJOR and PATCH (the Msi BUILD) at most $MSI_MAX_BUILD."
+            }
+            return "$major.$minor.$build"
+        }
+
     companion object {
+        // Windows Installer ProductVersion limits (also what the Compose plugin checks).
+        private const val MSI_MAX_MAJOR = 255L
+        private const val MSI_MAX_MINOR = 255L
+        private const val MSI_MAX_BUILD = 65535L
+
         const val NAME_PROPERTY = "poolprint.versionName"
         const val CODE_PROPERTY = "poolprint.versionCode"
 

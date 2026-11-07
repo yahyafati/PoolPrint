@@ -1,8 +1,9 @@
 # Optional release build in GitHub Actions (docs/release.md, Phase 9; D-24).
 #
-# On a pushed tag v<versionName>: tests, the release-key APK (Linux), the DMG (macOS arm64), the same checks as
-# `make release` (scripts/release.sh ci-*), then a *draft* GitHub release with the same files. Publishing stays a
-# manual click on GitHub. `make release` on the owner's Mac keeps working; use one or the other per version.
+# On a pushed tag v<versionName>: tests, the release-key APK (Linux), the DMG (macOS arm64), the unsigned per-user
+# Msi (Windows x64, D-29, D-30, D-32), the same checks as `make release` (scripts/release.sh ci-*), then a *draft*
+# GitHub release with the same files. Publishing stays a manual click on GitHub. `make release` on the owner's Mac
+# keeps working (with `WINDOWS_MSI=<file>` from a windows.yml run); use one or the other per version.
 #
 # The signing secrets live in the `release` environment (owner approval, `v*` tags only) and only reach the one step
 # that builds the APK. No Gradle cache is restored or saved here.
@@ -151,9 +152,46 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  windows:
+    name: Msi (Windows x64)
+    needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
+    # jpackage can't cross-build: the Msi needs a Windows runner (D-31, D-32). No secrets here (unsigned, D-29).
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The bundled runtime comes from this JDK, as in the other jobs (Zulu 21).
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: zulu
+          java-version: '21'
+
+      # The JVM suite on Windows too (Credential Manager, hand-over, file lock), before shipping the Windows file.
+      - name: Run the JVM tests on Windows
+        run: .\gradlew.bat --no-daemon :shared:jvmTest
+
+      # The Compose plugin downloads WiX 3.x itself on first use. The file checks (header, size, version in the
+      # name) run in the draft job through ci-package.
+      - name: Build the Msi
+        run: .\gradlew.bat --no-daemon :desktopApp:packageReleaseMsi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: msi
+          path: desktopApp/build/compose/binaries/main-release/msi/*.msi
+          retention-days: 7
+          if-no-files-found: error
+
   release:
     name: Draft release
-    needs: [android, macos]
+    needs: [android, macos, windows]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -174,7 +212,9 @@ jobs:
           shopt -s nullglob
           dmgs=("$RUNNER_TEMP"/artifacts/dmg/*.dmg)
           [ ${#dmgs[@]} -eq 1 ] || { echo "::error::Expected one DMG, found ${#dmgs[@]}."; exit 1; }
-          scripts/release.sh ci-package "$RUNNER_TEMP/artifacts/apk/androidApp-release.apk" "${dmgs[0]}"
+          msis=("$RUNNER_TEMP"/artifacts/msi/*.msi)
+          [ ${#msis[@]} -eq 1 ] || { echo "::error::Expected one Msi, found ${#msis[@]}."; exit 1; }
+          scripts/release.sh ci-package "$RUNNER_TEMP/artifacts/apk/androidApp-release.apk" "${dmgs[0]}" "${msis[0]}"
 
       - name: Create the draft release
         env:

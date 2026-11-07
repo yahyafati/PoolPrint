@@ -1,0 +1,96 @@
+# Windows tests and Msi build (docs/release.md, Windows; D-31, amended by D-32).
+#
+# Runs on every push to main, on every pull request, and by hand. jpackage cannot build a Windows installer on the
+# owner's Mac, so this runs the JVM tests on Windows (the MINA SSHD transport tests, the loopback hand-over and
+# file-lock tests) and builds the unsigned per-user Msi (D-29, D-30). The Msi is uploaded as a workflow artifact.
+# Nothing is published, tagged or released here, and there are no secrets (pull requests from forks run it too).
+# Tagged releases build their own Msi in release.yml; for `make release` on the Mac, download the Msi from a run on
+# the commit you are releasing (the summary shows the commit) and pass it on (`make release WINDOWS_MSI=<file>`).
+name: Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  # A newer push to the same pull request supersedes the old run; runs on main and manual runs finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  msi:
+    name: JVM tests and Msi (Windows x64)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: gradle/actions/wrapper-validation@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+
+      # Zulu 21, as in the other workflows: the Msi's bundled runtime comes from this JDK.
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: zulu
+          java-version: '21'
+          cache: gradle
+
+      # The JVM suite runs unchanged on Windows (W1/W2 add their Windows-only checks to it). The real Credential
+      # Manager round-trip stays off: it is gated by POOLPRINT_WINCRED_TEST and runs by hand on a PC.
+      - name: Run the JVM tests
+        run: .\gradlew.bat --no-daemon :shared:jvmTest
+
+      # The Compose plugin downloads WiX 3.x itself on first use.
+      - name: Build the Msi
+        run: .\gradlew.bat --no-daemon :desktopApp:packageReleaseMsi
+
+      # What can be checked without installing it: one file, .msi, not tiny, OLE/CFB header (D0 CF 11 E0 A1 B1 1A E1).
+      - name: Check the Msi file
+        id: msi
+        run: |
+          $dir = 'desktopApp/build/compose/binaries/main-release/msi'
+          $files = @(Get-ChildItem -Path $dir -Filter *.msi)
+          if ($files.Count -ne 1) { throw "Expected one .msi in $dir, found $($files.Count)." }
+          $msi = $files[0]
+          if ($msi.Length -lt 10MB) { throw "$($msi.Name) is only $($msi.Length) bytes; expected a bundled runtime." }
+          $stream = [System.IO.File]::OpenRead($msi.FullName)
+          $head = New-Object byte[] 8
+          [void]$stream.Read($head, 0, 8)
+          $stream.Dispose()
+          $magic = ($head | ForEach-Object { $_.ToString('X2') }) -join ' '
+          if ($magic -ne 'D0 CF 11 E0 A1 B1 1A E1') { throw "$($msi.Name) doesn't start with the OLE/CFB header: $magic" }
+          $sha = (Get-FileHash -Algorithm SHA256 $msi.FullName).Hash.ToLower()
+          "$($msi.Name): $($msi.Length) bytes, SHA-256 $sha"
+          "### $($msi.Name)`n`n- commit: ``$env:GITHUB_SHA```n- size: $($msi.Length) bytes`n- SHA-256: ``$sha```n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      # For the owner: compare with the five modules in desktopApp/build.gradle.kts (docs/roadmap.md, Windows checklist).
+      # Not a gate, so a failure here doesn't fail the run.
+      - name: List the suggested jlink modules
+        continue-on-error: true
+        run: .\gradlew.bat --no-daemon :desktopApp:suggestRuntimeModules
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: msi
+          path: desktopApp/build/compose/binaries/main-release/msi/*.msi
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Upload the test reports
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-reports-windows
+          path: shared/build/reports/tests/
+          retention-days: 7
+          if-no-files-found: ignore
