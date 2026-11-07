@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a Kotlin Multiplatform + Compose Multiplatform app targeting **Android** and **macOS desktop (JVM)**. It prints PDFs on the Uni Freiburg TF pool printers by running `lpr` over SSH on `login.informatik.uni-freiburg.de`, streaming the PDF into its stdin. Milestones 1–4 are implemented; the design is documented in `docs/`, and `docs/roadmap.md` has the status.
+Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a Kotlin Multiplatform + Compose Multiplatform app targeting **Android**, **macOS desktop (JVM)** and, in progress, **Windows x64 desktop (JVM)** (D-25). It prints PDFs on the Uni Freiburg TF pool printers by running `lpr` over SSH on `login.informatik.uni-freiburg.de`, streaming the PDF into its stdin. Milestones 1–4 are implemented; the design is documented in `docs/`, and `docs/roadmap.md` has the status. The Windows port is tracked in the temporary `docs/windows-port-roadmap.md` (phases W0–W4; decisions D-25–D-31); W0 (decisions and docs) is done, the code lands in W1–W4.
 
 ## Read before working
 
@@ -36,7 +36,7 @@ Pool Print (Gradle project `PoolPrint`, package `com.yahyafati.poolprint`) is a 
 - Android debug APK: `./gradlew :androidApp:assembleDebug`
 - Desktop run: `./gradlew :desktopApp:run`
 - Desktop with hot reload: `./gradlew :desktopApp:hotRun --auto`
-- Desktop macOS installer: `./gradlew :desktopApp:packageDmg` (Dmg is the only target, D-18)
+- Desktop macOS installer: `./gradlew :desktopApp:packageDmg` (Dmg is the only macOS target, D-18). Windows packaging (`Msi`, built on a Windows runner/PC, D-30, D-31) arrives in W3/W4; it cannot be built on macOS.
 - Shared tests on JVM: `./gradlew :shared:jvmTest`
 - Shared tests on Android host (local JVM): `./gradlew :shared:testAndroidHostTest`
 - Build-logic tests (version parsing): `./gradlew :buildSrc:test`; `make test-all` runs all three suites

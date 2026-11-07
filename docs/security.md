@@ -7,7 +7,7 @@ makes it security-sensitive even though it's a small app. The rules here are **r
 
 | Asset | Threat | Mitigation |
 |---|---|---|
-| SSH private key | Stolen from device storage or backups | Encrypted at rest with a platform-held key (Android Keystore / macOS Keychain); excluded from Android backups; never logged or exported in plaintext |
+| SSH private key | Stolen from device storage or backups | Encrypted at rest with a platform-held key (Android Keystore / macOS Keychain / Windows Credential Manager); excluded from Android backups; never logged or exported in plaintext |
 | Pool account | Arbitrary command execution through crafted input (shell injection) | Typed values only, allow-list validation, per-token shell quoting, injection tests on every field |
 | Pool account | Man-in-the-middle impersonating the login server | Host key pinned on first use (TOFU); a changed key **blocks** the connection |
 | Pool password | Phishing, storage in the app, or reuse for other commands | Never stored; asked for at most once, optionally, in onboarding to install the key (D-20); sent only after the host key is verified; that login can run only the fixed key-install command; regular commands are publickey-only |
@@ -65,6 +65,45 @@ Out of scope: a fully compromised (rooted or jailbroken) device, and a compromis
   **path**, reads the key when it connects and never copies it. If the key is passphrase-protected,
   ask for the passphrase **once** and store it in the Keychain, so later prints don't prompt (A-11).
   That passphrase protects the key; it isn't the pool password.
+
+### Windows storage
+
+Decided in D-26; implemented in W1. Not verified on a real Windows machine until the owner's checklist.
+
+- **Default:** the private key is a Credential Manager generic credential (`CRED_TYPE_GENERIC`,
+  `CRED_PERSIST_LOCAL_MACHINE`, target name based on `Pool Print`, mirroring the Keychain item), written, read and
+  deleted with `CredWriteW` / `CredReadW` / `CredDeleteW` through JNA (`jna-platform`). It is bound to the Windows
+  user, opens without a prompt (A-11), does not roam, and the user can see and delete it in Control Panel.
+- The secret never goes on a command line or into a log; native buffers and byte arrays are zeroed after use. `load`
+  returns `null` when nothing is stored (the app then generates a new key), `save` overwrites, `delete` is idempotent.
+- The data folder is `%LOCALAPPDATA%\Pool Print` (D-27). It holds only non-secret state (settings, pinned host
+  keys, discovery cache) and the single-instance files below.
+- A process running as the same Windows user can read the credential. That is the same trust boundary as the Keychain
+  (out of scope: a compromised user session).
+
+### Single instance and file hand-over (Windows)
+
+Decided in D-28; implemented in W2. Explorer's "Open with" starts a new process per file, and two processes on one
+DataStore file can corrupt it. So a second instance never opens the store: it hands its file to the first and exits.
+
+1. **Who is running:** the process that gets an exclusive `FileChannel` lock on `%LOCALAPPDATA%\Pool Print\instance.lock`
+   is *the* instance. The OS drops the lock when the process dies, so a crash leaves no stale lock.
+2. **Listener:** the running instance opens a `ServerSocket` bound to the **loopback address only** (127.0.0.1) on an
+   ephemeral port, and writes the port and a **random token** (from `SecureRandom`, 128 bits or more) to a file in the
+   data folder that only the current user can read (inherited permissions of `%LOCALAPPDATA%` are user-only; the file
+   is created fresh with no wider access, and replaced on every start).
+3. **Hand-over:** a second instance fails to get the lock, reads the port and token, connects to loopback, sends the
+   token and the file path, and exits. It never opens the DataStore, the key store or the network.
+4. **What is accepted:** only a file **path**, with the right token, in a bounded-length single line. A wrong token,
+   garbage, an oversized or multi-line message, or a path that doesn't exist or isn't a PDF is dropped silently and
+   never acted on. No commands, no URLs, no other message types.
+5. **What happens next:** the path goes through `isPdfFile` and then into the normal incoming-document path, so it
+   opens the usual print sheet. **Nothing prints by itself:** the user still presses Print. The same one-document and
+   busy-job rules as for drops and Open With apply (D-18).
+6. **Threat considered:** another local user or a web page connecting to the loopback port. A web page cannot read
+   the token file and sends no valid token; another Windows user cannot read this user's file; and even a valid
+   message can only show a print sheet for an existing PDF, never print, read or send the file. Tests (W2): wrong
+   token, garbage, non-PDF path, nonexistent path, oversized message, lock held / released.
 
 ## Host-key verification (TOFU)
 

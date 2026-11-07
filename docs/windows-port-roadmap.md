@@ -1,7 +1,8 @@
 # Windows port — temporary roadmap
 
-> **Temporary planning file.** Once the decisions in W0 are made, fold this into [roadmap.md](roadmap.md) as a
-> milestone (e.g. `W1 — Windows desktop`), record the decisions in [decisions.md](decisions.md), and delete this file.
+> **Temporary planning file.** The W0 decisions are made and recorded as D-25–D-31 in [decisions.md](decisions.md).
+> This file stays the working tracker until W4 is done; then fold the result into [roadmap.md](roadmap.md) as a
+> milestone and delete this file. ([roadmap.md](roadmap.md) only carries a pointer meanwhile.)
 
 Same working rules as every milestone ([development.md](development.md)): one phase at a time, stop and report,
 register every new library, keep the docs in sync. Linux, Windows on ARM, the Microsoft Store and auto-update are
@@ -11,7 +12,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done (unit-tested) · 
 
 | Phase | Status |
 |---|---|
-| W0 — Decisions and doc changes | ⬜ |
+| W0 — Decisions and doc changes | ✅ |
 | W1 — Platform code (key store, data folder, OS switch) | ⬜ |
 | W2 — File hand-over (picker, drop, Open With, single instance) | ⬜ |
 | W3 — Packaging (Msi) | ⬜ |
@@ -37,31 +38,35 @@ The parts tied to macOS:
 
 ## W0 — Decisions and doc changes
 
-Decide these first; each becomes a D-entry in [decisions.md](decisions.md).
+Decided 2026-11-07 (owner accepted the recommendations); each is a D-entry in [decisions.md](decisions.md).
 
-- ⬜ **Lift the target restriction:** amend A-01 ("Android and macOS desktop") and D-18 ("Dmg only") to include
+- ✅ **Lift the target restriction (D-25):** amend A-01 ("Android and macOS desktop") and D-18 ("Dmg only") to include
   Windows. Update [Project Overview.md](Project%20Overview.md) (targets) and `CLAUDE.md` (project summary, commands).
-- ⬜ **Windows key storage.** Both options open without a prompt (A-11) and are bound to the Windows user:
+- ✅ **Windows key storage (D-26): Credential Manager.** Both options open without a prompt (A-11) and are bound to the Windows user:
   - **Credential Manager** (`CredWriteW`/`CredReadW`/`CredDeleteW`, `CRED_TYPE_GENERIC`,
     `CRED_PERSIST_LOCAL_MACHINE` so it doesn't roam). The closest analogue to the Keychain item; the user can see
     and delete it in Control Panel. Blob limit 2560 bytes; the OpenSSH Ed25519 key is ~400. **Recommended.**
   - **DPAPI** (`CryptProtectData`, current-user scope) with the ciphertext in a file under the data folder.
   Either way via `jna-platform` (same version as `jna`) → register it in the dependency register.
-- ⬜ **Data folder:** `%LOCALAPPDATA%\Pool Print` (not `%APPDATA%`, which roams: settings and pinned host keys
+- ✅ **Data folder (D-27):** `%LOCALAPPDATA%\Pool Print` (not `%APPDATA%`, which roams: settings and pinned host keys
   would follow the user to another PC while the non-roaming private key wouldn't).
-- ⬜ **Single instance.** Explorer's "Open with" starts a *new process* for every file. Two processes on the same
+- ✅ **Single instance (D-28; protocol in [security.md](security.md#single-instance-and-file-hand-over-windows)).** Explorer's "Open with" starts a *new process* for every file. Two processes on the same
   DataStore file can corrupt it, so a second instance must hand its file to the first and exit, never open the
   store. Proposal: an exclusive `FileChannel` lock on `%LOCALAPPDATA%\Pool Print\instance.lock`; the running
   instance listens on a loopback port with a random token, both written to a file only the user can read; the second
   instance sends the path and exits. Only a path is accepted, and it goes through `isPdfFile` and then the normal
   print sheet (the user still has to press Print). Document it in [security.md](security.md).
-- ⬜ **Code signing.** Unsigned installers get SmartScreen's "Windows protected your PC → More info → Run anyway".
+- ✅ **Code signing (D-29): unsigned for now.** Unsigned installers get SmartScreen's "Windows protected your PC → More info → Run anyway".
   Options: stay unsigned (fine for a personal app, documented in the release notes), Azure Trusted Signing
   (monthly fee), or an OV certificate. Recommendation: unsigned for now.
-- ⬜ **Installer format:** Msi (upgrades in place via a fixed `upgradeUuid`) vs Exe. Recommendation: Msi,
+- ✅ **Installer format (D-30): Msi, per-user.** Msi (upgrades in place via a fixed `upgradeUuid`) vs Exe. Recommendation: Msi,
   per-user install (no admin prompt).
-- ⬜ **Where Windows builds come from:** jpackage can't build a Windows installer on macOS. Options: a Windows PC,
+- ✅ **Where Windows builds come from (D-31): GitHub Actions `windows-latest`, `workflow_dispatch` only.** jpackage can't build a Windows installer on macOS. Options: a Windows PC,
   a Windows VM, or a GitHub Actions `windows-latest` workflow (the owner triggers it; agents never push).
+
+**Outcome:** all seven decisions taken as recommended; `jna-platform` pre-registered in the dependency register
+(added to `libs.versions.toml` in W1); [security.md](security.md) has the Windows key-storage and single-instance
+sections; Project Overview and `CLAUDE.md` list Windows as a target. No code changed.
 
 ## W1 — Platform code
 

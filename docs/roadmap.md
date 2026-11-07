@@ -12,6 +12,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done (unit-tested) · 
 | M3 — Discovery, presets, queue | 🔶 |
 | M4 — macOS polish | 🔶 |
 | R1 — First sideloaded GitHub release (v1.0.0) | 🔶 |
+| W1 — Windows desktop | 🟨 in progress, see [windows-port-roadmap.md](windows-port-roadmap.md) (W0 decisions done: D-25–D-31) |
 
 ---
 
@@ -286,3 +287,14 @@ notes and a clear "vibe-coded, provided as is" notice. The phases, owner/agent s
   script's checks via `scripts/release.sh ci-*`) into a **draft** release. Checked locally only. The `release`
   environment and its four secrets are set up (2026-11-07). Left: 👤 push the workflows, then a first real run
   (ideally an RC).
+
+---
+
+## W1 — Windows desktop (in progress, see windows-port-roadmap.md)
+
+**Goal:** the desktop app also runs on Windows x64, installed from an unsigned per-user Msi. The phases (W0–W4),
+tasks and the Windows manual checklist are in the temporary [windows-port-roadmap.md](windows-port-roadmap.md),
+which stays the working tracker until W4 is done and is then folded in here. Decisions: D-25–D-31.
+
+- ✅ W0 — decisions and doc changes (2026-11-07).
+- ⬜ W1 — platform code · ⬜ W2 — file hand-over · ⬜ W3 — Msi packaging · ⬜ W4 — build workflow, release tooling and gate.

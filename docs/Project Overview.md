@@ -6,7 +6,7 @@
 ## What it is
 
 Pool Print is a remote-printing app for the computer pool of the Faculty of Engineering (TF) at the
-University of Freiburg. It lets a student print a PDF from their Android phone or Mac in a few taps,
+University of Freiburg. It lets a student print a PDF from their Android phone, Mac or Windows PC in a few taps,
 while still controlling all the printing options.
 
 ## The problem
@@ -25,7 +25,7 @@ this same command and changes nothing on the server side.
 ## Users
 
 - **Primary:** the author, a TF student with a pool account, printing lecture slides, exercise sheets
-  and papers from an Android phone or a MacBook.
+  and papers from an Android phone or a MacBook (a Windows PC is being added, D-25).
 - **Secondary:** other TF students. Each student uses their own pool account and SSH key. There is no
   shared infrastructure.
 
@@ -84,8 +84,9 @@ These are **not negotiable** without an explicit decision from the owner:
   name goes into the remote command.
 - **No secret prompts in regular use.** After onboarding, printing never asks for a password,
   passphrase or unlock. Secrets are stored securely and unlocked implicitly.
-- **Targets: Android and macOS desktop (JVM) only.** The shared core still stays free of platform code,
-  so an iOS or web target could be added later.
+- **Targets: Android, macOS desktop and Windows x64 desktop (JVM) only** (Windows added 2026-11-07, D-25). Linux,
+  Windows on ARM and app stores are out. The shared core still stays free of platform code, so an iOS or web target
+  could be added later.
 
 ## Feature scope by milestone
 
@@ -97,6 +98,7 @@ The full breakdown, with acceptance criteria and manual test checklists, is in [
 | **M2** | Options & cost | All standard options in the UI, local page count and cost estimate, remember last used printer and options |
 | **M3** | Power features | `lpoptions` discovery, saved presets, queue view and cancel own jobs |
 | **M4** | macOS polish | Drag and drop, "Open With", `.dmg` packaging |
+| **W1–W4** | Windows port (in progress) | Credential Manager key store, single instance and file hand-over, Msi, Windows build workflow; tracked in [windows-port-roadmap.md](windows-port-roadmap.md) |
 
 ## Documentation map
 
