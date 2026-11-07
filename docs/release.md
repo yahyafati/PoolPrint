@@ -82,12 +82,11 @@ Keystore-protected key can't be backed up, D-11). So: one key, created once, bac
 
 ### 1.1 👤 Create the keystore (outside the repo)
 
-```bash
-mkdir -p ~/Keystores && chmod 700 ~/Keystores
-```
+It goes in `~/keys`, next to the keys of your other apps. That folder should be readable by you only; `ls -ld ~/keys`
+should start with `drwx------` (if not: `chmod 700 ~/keys`).
 
 ```bash
-keytool -genkeypair -v -keystore ~/Keystores/poolprint-release.jks -storetype PKCS12 -alias poolprint -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=Yahya Fati, O=Pool Print"
+keytool -genkeypair -v -keystore ~/keys/poolprint-release.jks -storetype PKCS12 -alias poolprint -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=Yahya Fati, O=Pool Print"
 ```
 
 `keytool` asks for the password interactively, so it doesn't land in your shell history. With PKCS12 the key
@@ -103,7 +102,7 @@ password is the same as the store password.
 Add to your **user-level** `~/.gradle/gradle.properties` (not the repo's):
 
 ```properties
-poolprint.signing.storeFile=/Users/yahyahaji/Keystores/poolprint-release.jks
+poolprint.signing.storeFile=/Users/yahyahaji/keys/poolprint-release.jks
 poolprint.signing.storePassword=<password>
 poolprint.signing.keyAlias=poolprint
 poolprint.signing.keyPassword=<password>
@@ -415,7 +414,7 @@ secrets.
     with `POOLPRINT_SIGNING_*` env vars, verify the certificate, upload the APK.
   - macOS job (`macos-latest`, arm64; add an Intel runner job if 0.5 says so): `packageReleaseDmg`, upload.
   - Release job: checksums, notices, **draft** release with all files. You still publish by hand.
-- [ ] 👤 Add repository secrets: `POOLPRINT_KEYSTORE_BASE64` (`base64 -i ~/Keystores/poolprint-release.jks | pbcopy`),
+- [ ] 👤 Add repository secrets: `POOLPRINT_KEYSTORE_BASE64` (`base64 -i ~/keys/poolprint-release.jks | pbcopy`),
       `POOLPRINT_SIGNING_STORE_PASSWORD`, `POOLPRINT_SIGNING_KEY_ALIAS`, `POOLPRINT_SIGNING_KEY_PASSWORD`. Protect them
       with an environment (`release`) that requires your approval.
 - [ ] Note: on a **private** repo, macOS runner minutes count ×10 against the free quota; on a public repo standard
