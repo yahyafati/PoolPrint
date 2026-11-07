@@ -131,6 +131,29 @@ class SshjClientTest {
     }
 
     @Test
+    fun `a command that exits before reading a large upload returns its exit code and stderr`() = runBlocking {
+        TestSshServer().start().use { server ->
+            pin(server)
+            val start = System.nanoTime()
+            val r = client(server).exec(cmd("echo nope >&2; exit 4"), ByteArraySource(ByteArray(20 * 1024 * 1024)), timeoutMs = 30_000)
+            assertEquals(SshResult(4, "", "nope\n"), r)
+            // Promptly, not after sshj's 30 s wait for window space that a closed channel never grants.
+            assertTrue((System.nanoTime() - start) / 1_000_000 < 10_000, "took too long")
+        }
+    }
+
+    @Test
+    fun `exit 0 without reading the whole upload is not a success`(): Unit = runBlocking {
+        TestSshServer().start().use { server ->
+            pin(server)
+            val e = assertFailsWith<SshException> {
+                client(server).exec(cmd("exit 0"), ByteArraySource(ByteArray(20 * 1024 * 1024)), timeoutMs = 30_000)
+            }
+            assertIs<SshError.Protocol>(e.error)
+        }
+    }
+
+    @Test
     fun `exceeding the deadline is a Timeout and returns promptly`() = runBlocking {
         TestSshServer().start().use { server ->
             pin(server)
@@ -214,7 +237,11 @@ class SshjClientTest {
         val lpr = FakeLpr().also { it.failWithUnknownPrinter() }
         TestSshServer(pathPrefix = lpr.dir).start().use { server ->
             pin(server)
-            val failure = (services(server).print(PrintJob(PrintOptions(), "x.pdf"), ByteArraySource(ByteArray(10))) {} as PrintResult.Failed).failure
+            // Larger than the SSH window: lpr exits before reading it, so the upload is cut short (FakeLpr).
+            val pdf = ByteArraySource(ByteArray(8 * 1024 * 1024))
+            val start = System.nanoTime()
+            val failure = (services(server).print(PrintJob(PrintOptions(), "x.pdf"), pdf) {} as PrintResult.Failed).failure
+            assertTrue((System.nanoTime() - start) / 1_000_000 < 10_000, "took too long")
             assertEquals(FailureKind.UnknownPrinter, failure.kind)
             assertEquals(1, failure.exitCode)
         }

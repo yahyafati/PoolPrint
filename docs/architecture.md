@@ -139,7 +139,10 @@ sealed interface SshError {
 4. **Build.** `LprCommandBuilder.build(job, capabilities)` → `RemoteCommand`, or a validation error.
 5. **Execute.** `SshClient.exec(command, stdin = document.openByteSource())` opens an exec channel and
    streams the bytes into stdin. When the bytes are done it closes stdin (EOF), then waits for the
-   exit status.
+   exit status. If `lpr` exits before reading everything (CUPS rejects an unknown destination before
+   reading stdin), the upload stops as soon as the exit status arrives or the channel closes, and the
+   result is `lpr`'s exit code and stderr, not a transport error. An exit 0 with an incomplete upload, or
+   a write failure without an exit status, stays an `SshError` (never reported as sent).
 6. **Report.** Exit 0 means success; CUPS usually prints `request id is tfppr1-123 (1 file(s))` to
    stdout, so parse the job id if it's there. A non-zero exit or an `SshError` gets mapped to a
    user-facing message ([ux.md](ux.md#error-catalogue)), with the raw stderr behind a "Details" toggle.

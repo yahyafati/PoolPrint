@@ -18,11 +18,12 @@ class FakeLpr(val dir: Path = Files.createTempDirectory("fake-lpr")) {
             """
             #!/bin/sh
             printf '%s\n' "${'$'}@" > '${PosixShell.path(argsFile)}'
-            cat > '${PosixShell.path(inputFile)}'
+            # Like CUPS lpr: an unknown destination fails before stdin is read, so a large upload is cut short.
             if [ "${'$'}(cat '${PosixShell.path(modeFile)}' 2>/dev/null)" = "unknown-printer" ]; then
               echo "lpr: The printer or class does not exist." >&2
               exit 1
             fi
+            cat > '${PosixShell.path(inputFile)}'
             echo "request id is tfppr1-7 (1 file(s))"
             """.trimIndent() + "\n",
         )

@@ -31,6 +31,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import net.schmizz.sshj.DefaultConfig
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.common.Buffer
@@ -180,31 +181,53 @@ class SshjClient(
             coroutineScope {
                 val stdout = async(Dispatchers.IO) { cmd.inputStream.readCapped() }
                 val stderr = async(Dispatchers.IO) { cmd.errorStream.readCapped() }
+                // A remote command may exit before it has read all of stdin (lpr rejecting a job straight away):
+                // the channel closes under the upload. Its exit code and stderr are then the answer, not the
+                // write error, which is kept only for when there is no exit status (a real connection problem).
+                var uploadFailure: IOException? = null
                 if (stdin != null) {
                     // sshj's blocking write can wait on a window the server never opens, and ignores coroutine
                     // cancellation. A dedicated thread can be interrupted, a pooled one can't be (safely).
-                    inDedicatedThread {
-                        val buffer = ByteArray(32 * 1024)
-                        var sent = 0L
-                        while (true) {
-                            if (Thread.currentThread().isInterrupted) throw InterruptedException()
-                            val n = stdin.read(buffer)
-                            if (n < 0) break
-                            cmd.outputStream.write(buffer, 0, n)
-                            sent += n
-                            onUploaded(sent)
+                    try {
+                        // Stop as soon as the command has exited or the channel is closed: sshj doesn't wake a write
+                        // that is waiting for window space when the channel closes, so it would sit out its 30 s timeout.
+                        inDedicatedThread(stopWhen = { cmd.exitStatus != null || !cmd.isOpen }) {
+                            val buffer = ByteArray(32 * 1024)
+                            var sent = 0L
+                            while (true) {
+                                if (Thread.currentThread().isInterrupted) throw InterruptedException()
+                                val n = stdin.read(buffer)
+                                if (n < 0) break
+                                cmd.outputStream.write(buffer, 0, n)
+                                sent += n
+                                onUploaded(sent)
+                            }
                         }
+                    } catch (e: IOException) {
+                        uploadFailure = e
                     }
                 }
-                cmd.outputStream.close() // EOF on the remote stdin
+                try {
+                    cmd.outputStream.close() // EOF on the remote stdin
+                } catch (e: IOException) {
+                    if (uploadFailure == null) uploadFailure = e
+                }
                 val out = stdout.await()
                 val err = stderr.await()
                 cmd.join(EXIT_STATUS_WAIT_SECONDS, TimeUnit.SECONDS)
-                SshResult(cmd.exitStatus ?: -1, out, err)
+                val exit = cmd.exitStatus
+                // Without an exit status the upload error stands. Exit 0 with an incomplete upload is not a success
+                // either: never report a job as sent when the remote didn't get the whole file.
+                uploadFailure?.let { if (exit == null || exit == 0) throw it }
+                SshResult(exit ?: -1, out, err)
             }
         }
 
-    private suspend fun <T> inDedicatedThread(block: () -> T): T {
+    /**
+     * Runs [block] on its own thread. Cancellation interrupts it; so does [stopWhen] turning true (checked every
+     * [STOP_POLL_MS]), which then fails with [UploadStoppedException].
+     */
+    private suspend fun <T> inDedicatedThread(stopWhen: () -> Boolean = { false }, block: () -> T): T {
         val result = CompletableDeferred<T>()
         val thread = thread(name = "poolprint-ssh-upload", isDaemon = true) {
             try {
@@ -214,12 +237,22 @@ class SshjClient(
             }
         }
         try {
-            return result.await()
+            while (true) {
+                withTimeoutOrNull(STOP_POLL_MS) { result.join() }
+                if (result.isCompleted) return result.await()
+                if (stopWhen()) {
+                    thread.interrupt()
+                    throw UploadStoppedException()
+                }
+            }
         } catch (e: CancellationException) {
             thread.interrupt()
             throw e
         }
     }
+
+    /** The remote command exited (or the channel closed) before it had read all of stdin. */
+    private class UploadStoppedException : IOException("The remote command stopped reading before the upload finished")
 
     private fun InputStream.readCapped(): String {
         val out = ByteArrayOutputStream()
@@ -235,6 +268,7 @@ class SshjClient(
     internal companion object {
         private const val MAX_OUTPUT_BYTES = 256 * 1024
         private const val EXIT_STATUS_WAIT_SECONDS = 5L
+        private const val STOP_POLL_MS = 50L
 
         /** Preferred order. A pinned key type restricts the offer, so the key type can't flap between connections. */
         private val ALGORITHM_ORDER = listOf("ssh-ed25519", "ecdsa-sha2-nistp256", "rsa-sha2-512", "rsa-sha2-256", "ssh-rsa")
