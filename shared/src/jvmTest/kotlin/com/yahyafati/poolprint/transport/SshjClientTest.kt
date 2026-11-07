@@ -122,7 +122,9 @@ class SshjClientTest {
         TestSshServer().start().use { server ->
             pin(server)
             var last = 0L
-            val r = client(server).exec(cmd("shasum -a 256 | cut -d' ' -f1"), ByteArraySource(bytes), { last = it }, timeoutMs = 60_000)
+            // sha256sum (Linux, Git for Windows' sh) or shasum (macOS): whichever the test machine has.
+            val sha256 = "if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi | cut -d' ' -f1"
+            val r = client(server).exec(cmd(sha256), ByteArraySource(bytes), { last = it }, timeoutMs = 60_000)
             assertEquals(expected, r.stdout.trim())
             assertEquals(bytes.size.toLong(), last)
         }
